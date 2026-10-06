@@ -48,6 +48,10 @@ X_BEARER_TOKEN = os.getenv("X_BEARER_TOKEN", "")        # read (monitoring)
 X_API_KEY = os.getenv("X_API_KEY", "")                  # write (OAuth1)
 X_API_SECRET = os.getenv("X_API_SECRET", "")
 
+# Admin auth (required before any public exposure — funnel/HTTPS)
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
 # Unsubscribe links must use a publicly reachable URL so recipients can click them
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:5558")
 

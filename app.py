@@ -11,7 +11,7 @@ Routes:
 """
 import threading
 from datetime import datetime, timezone
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 
 import config
 from models import db, Lead, Consent, Suppression, Campaign, Event, InboxMessage
@@ -25,6 +25,34 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+
+
+# --- Access control -------------------------------------------------------
+# The UI holds lead data and settings: it must never be public without auth.
+# Public paths (must stay open): unsubscribe pages/links (recipients are not
+# admin), provider webhooks (Meta/Telegram call them), static assets.
+PUBLIC_PATHS = ("/unsubscribe/", "/webhooks/", "/telegram/webhook", "/static/")
+
+
+@app.before_request
+def require_admin_auth():
+    path = request.path
+    if any(path.startswith(p) for p in PUBLIC_PATHS):
+        return None  # open by design
+    if not config.ADMIN_PASSWORD:
+        # No password configured: allow LAN only, refuse anything else.
+        remote = request.remote_addr or ""
+        lan = remote.startswith(("127.", "10.", "192.168.", "100."))
+        if lan:
+            return None
+        return ("Forbidden: set ADMIN_PASSWORD in .env before exposing "
+                "this service publicly.", 403)
+    auth = request.authorization
+    if not auth or auth.username != config.ADMIN_USER or \
+            auth.password != config.ADMIN_PASSWORD:
+        return Response("Admin login required.", 401,
+                       {"WWW-Authenticate": 'Basic realm="Fixzy"'})
+    return None
 
 # --- APScheduler: fire blasts whose scheduled_at has arrived -------------------
 from apscheduler.schedulers.background import BackgroundScheduler
