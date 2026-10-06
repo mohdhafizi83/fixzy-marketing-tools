@@ -475,6 +475,62 @@ def whatsapp_webhook():
     return jsonify({"ok": True, "saved": saved})
 
 
+@app.route("/webhooks/meta", methods=["GET", "POST"])
+def meta_messaging_webhook():
+    """Shared webhook for Messenger (FB Page) and Instagram Direct.
+
+    GET  -> hub.challenge verification handshake (one verify token for both)
+    POST -> store inbound messages in the reply inbox (dedup by mid).
+    Payload shape (verified vs developers.facebook.com, Oct 2026):
+      object: "page" (Messenger) or "instagram" (IG Direct)
+      entry[].messaging[]: {sender: {id}, message: {mid, text},
+                           recipient: {id}, timestamp}
+    Echo events (message.is_echo) are skipped — we do not inbox our own sends.
+    """
+    from credentials import cred
+    if request.method == "GET":
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        # Fail closed: unset verify token must never match anything
+        if not cred("messenger_verify_token"):
+            return "messenger_verify_token not configured " \
+                   "(Settings -> Channels)", 403
+        if mode == "subscribe" and token == cred("messenger_verify_token"):
+            return request.args.get("hub.challenge", ""), 200
+        return "verification failed", 403
+
+    data = request.get_json(silent=True) or {}
+    obj = data.get("object", "")
+    if obj not in ("page", "instagram"):
+        return jsonify({"ok": False, "error": f"unknown object '{obj}'"}), 400
+    channel = "messenger" if obj == "page" else "instagram"
+
+    saved = 0
+    with app.app_context():
+        for entry in data.get("entry", []):
+            for m in entry.get("messaging", []):
+                msg = m.get("message") or {}
+                # Skip echoes (our own outbound) and empty events
+                if msg.get("is_echo") or not msg.get("mid"):
+                    continue
+                ext_id = msg["mid"]
+                if InboxMessage.query.filter_by(external_id=ext_id).first():
+                    continue
+                sender_id = (m.get("sender") or {}).get("id", "")
+                name = ((m.get("sender") or {}).get("name")
+                       or (m.get("message") or {}).get("sender_name") or "")
+                db.session.add(InboxMessage(
+                    channel=channel,
+                    external_id=ext_id,
+                    sender_id=sender_id,
+                    sender_name=name,
+                    text=msg.get("text", ""),
+                ))
+                saved += 1
+        db.session.commit()
+    return jsonify({"ok": True, "channel": channel, "saved": saved})
+
+
 @app.route("/inbox")
 def inbox():
     """F3 reply inbox — WhatsApp (and future) inbound messages."""
@@ -502,6 +558,15 @@ def inbox_reply(mid):
             db.session.add(lead)
             db.session.flush()
         result = WhatsAppAdapter().send_reply(lead, text)
+        if result.ok:
+            m.status = "replied"
+            db.session.commit()
+            flash("Reply sent.")
+        else:
+            flash(f"Reply failed: {result.detail}")
+    elif m.channel in ("messenger", "instagram"):
+        from adapters import get_adapter
+        result = get_adapter(m.channel).send_reply(m.sender_id, text)
         if result.ok:
             m.status = "replied"
             db.session.commit()

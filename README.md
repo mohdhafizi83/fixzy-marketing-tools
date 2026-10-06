@@ -70,7 +70,8 @@ list. Key variables:
 
 - **F1 (built):** crawler + lead DB + Email + Telegram + consent/unsubscribe
 - **F2 (built):** MY SMS gateway + search API + analytics dashboard
-- **F3 (built):** WhatsApp Cloud API (reply-only) + reply inbox + X monitoring
+- **F3 (built):** WhatsApp Cloud API (reply-only) + Messenger/Instagram Direct
+  reply inbox + X monitoring
 - **Deployment (active):** systemd user unit `fixzy-marketing-tools.service` +
   Tailscale funnel HTTPS (`tailscale funnel --bg 5558`). Admin login required
   for all UI paths except unsubscribe pages and provider webhooks

@@ -43,6 +43,12 @@ def get_adapter(channel: str) -> BaseAdapter:
     if channel == "whatsapp":
         from adapters.whatsapp_cloud import WhatsAppAdapter
         return WhatsAppAdapter()
+    if channel == "messenger":
+        from adapters.messenger import MessengerAdapter
+        return MessengerAdapter()
+    if channel == "instagram":
+        from adapters.messenger import InstagramAdapter
+        return InstagramAdapter()
     if channel == "x":
         from adapters.x_api import XAdapter
         return XAdapter()

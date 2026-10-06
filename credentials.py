@@ -32,6 +32,10 @@ _ENV_DEFAULTS = {
     "x_bearer_token": lambda: config.X_BEARER_TOKEN,
     "x_api_key": lambda: config.X_API_KEY,
     "x_api_secret": lambda: config.X_API_SECRET,
+    # Meta messaging (Messenger + Instagram Direct share one webhook)
+    "messenger_verify_token": lambda: config.MESSENGER_VERIFY_TOKEN,
+    "messenger_page_token": lambda: config.MESSENGER_PAGE_TOKEN,
+    "instagram_access_token": lambda: config.INSTAGRAM_ACCESS_TOKEN,
     # Search API
     "serpapi_key": lambda: config.SERPAPI_KEY,
     "searxng_url": lambda: config.SEARXNG_URL,
@@ -72,6 +76,13 @@ CHANNEL_FIELDS = {
         ("whatsapp_access_token", "Access token", True),
         ("whatsapp_phone_number_id", "Phone number ID", False),
         ("whatsapp_app_secret", "App secret (webhook verify)", True),
+    ],
+    "messenger (FB Page)": [
+        ("messenger_page_token", "Page access token", True),
+        ("messenger_verify_token", "Webhook verify token (shared with IG)", True),
+    ],
+    "instagram (Direct)": [
+        ("instagram_access_token", "IG access token", True),
     ],
     "x (Twitter)": [
         ("x_bearer_token", "Bearer token (read/monitor)", True),

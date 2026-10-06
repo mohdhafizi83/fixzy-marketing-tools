@@ -48,6 +48,11 @@ X_BEARER_TOKEN = os.getenv("X_BEARER_TOKEN", "")        # read (monitoring)
 X_API_KEY = os.getenv("X_API_KEY", "")                  # write (OAuth1)
 X_API_SECRET = os.getenv("X_API_SECRET", "")
 
+# Meta messaging: Messenger (FB Page) + Instagram Direct share one webhook
+MESSENGER_VERIFY_TOKEN = os.getenv("MESSENGER_VERIFY_TOKEN", "")
+MESSENGER_PAGE_TOKEN = os.getenv("MESSENGER_PAGE_TOKEN", "")
+INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
+
 # Admin auth (required before any public exposure — funnel/HTTPS)
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
