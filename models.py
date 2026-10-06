@@ -128,3 +128,20 @@ class Setting(db.Model):
         else:
             db.session.add(cls(key=key, value=value))
         db.session.commit()
+
+
+class InboxMessage(db.Model):
+    """F3 reply inbox: inbound messages from reply-only channels.
+
+    WhatsApp (and later FB/IG) inbound webhooks land here so the owner can
+    read and reply within the 24h window. status: new / replied / archived.
+    """
+    __tablename__ = "inbox_messages"
+    id = db.Column(db.Integer, primary_key=True)
+    channel = db.Column(db.String(32), nullable=False, index=True)   # whatsapp / messenger / instagram
+    external_id = db.Column(db.String(128), unique=True)            # provider message id (dedup)
+    sender_id = db.Column(db.String(128))                           # wa user id / PSID
+    sender_name = db.Column(db.String(128))
+    text = db.Column(db.Text)
+    status = db.Column(db.String(16), default="new")                # new/replied/archived
+    received_at = db.Column(db.DateTime, server_default=db.func.now())

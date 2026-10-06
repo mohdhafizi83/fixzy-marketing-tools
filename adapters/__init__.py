@@ -40,4 +40,10 @@ def get_adapter(channel: str) -> BaseAdapter:
         from adapters.redsms import RedSmsAdapter
         tw = TwilioSmsAdapter()
         return tw if tw.is_configured() else RedSmsAdapter()
+    if channel == "whatsapp":
+        from adapters.whatsapp_cloud import WhatsAppAdapter
+        return WhatsAppAdapter()
+    if channel == "x":
+        from adapters.x_api import XAdapter
+        return XAdapter()
     raise ValueError(f"Unknown channel: {channel}")

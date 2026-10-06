@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Reply Inbox</h2>
+<p style="color:#666">Inbound messages from reply-only channels (WhatsApp).
+WhatsApp replies only work within 24 hours of the sender's message.</p>
+<table>
+  <tr><th>ID</th><th>Channel</th><th>From</th><th>Message</th><th>Status</th><th>Received</th><th>Reply</th></tr>
+  {% for m in msgs %}
+  <tr>
+    <td>{{ m.id }}</td>
+    <td>{{ m.channel }}</td>
+    <td>{{ m.sender_name or m.sender_id }}</td>
+    <td style="max-width:320px">{{ m.text }}</td>
+    <td>{{ m.status }}</td>
+    <td>{{ m.received_at }}</td>
+    <td>
+      {% if m.channel == 'whatsapp' and m.status != 'archived' %}
+      <form method="post" action="{{ url_for('inbox_reply', mid=m.id) }}">
+        <input type="text" name="text" placeholder="Type reply..." style="width:180px">
+        <button>Send</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" style="color:#666">No inbound messages yet. Configure the
+    WhatsApp webhook (URL: <code>/webhooks/whatsapp</code>) in the Meta app dashboard.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

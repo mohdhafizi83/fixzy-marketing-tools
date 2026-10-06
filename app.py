@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 import config
-from models import db, Lead, Consent, Suppression, Campaign, Event
+from models import db, Lead, Consent, Suppression, Campaign, Event, InboxMessage
 from extractor import extract_emails, extract_phones_my
 from crawler import Crawler
 
@@ -79,7 +79,7 @@ def _get_or_create_lead(email=None, phone=None, source="") -> Lead:
 def dashboard():
     from adapters import get_adapter
     chans = {}
-    for ch in ("email", "telegram", "sms"):
+    for ch in ("email", "telegram", "sms", "whatsapp", "x"):
         a = get_adapter(ch)
         chans[ch] = {"configured": a.is_configured(), "outbound": a.supports_outbound}
     return render_template("dashboard.html",
@@ -370,6 +370,96 @@ def campaign_schedule(cid):
                      args=[c.id], id=f"blast_{c.id}", replace_existing=True)
     flash(f"Campaign {c.id} scheduled for {when.isoformat()} UTC.")
     return redirect(url_for("dashboard"))
+
+
+@app.route("/webhooks/whatsapp", methods=["GET", "POST"])
+def whatsapp_webhook():
+    """Meta webhook for WhatsApp inbound messages.
+
+    GET  -> hub.challenge verification (Meta's subscription handshake)
+    POST -> store inbound messages in the reply inbox (dedup by message id)
+    """
+    if request.method == "GET":
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        # Reject if no secret configured — empty must never match empty
+        if not config.WHATSAPP_APP_SECRET:
+            return "WHATSAPP_APP_SECRET not configured", 403
+        if mode == "subscribe" and token == config.WHATSAPP_APP_SECRET:
+            return request.args.get("hub.challenge", ""), 200
+        return "verification failed", 403
+
+    data = request.get_json(silent=True) or {}
+    saved = 0
+    with app.app_context():
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                for msg in value.get("messages", []):
+                    ext_id = msg.get("id")
+                    if not ext_id or InboxMessage.query.filter_by(
+                            external_id=ext_id).first():
+                        continue
+                    contact = (value.get("contacts") or [{}])[0]
+                    db.session.add(InboxMessage(
+                        channel="whatsapp",
+                        external_id=ext_id,
+                        sender_id=msg.get("from", ""),
+                        sender_name=contact.get("profile", {}).get("name", ""),
+                        text=msg.get("text", {}).get("body", ""),
+                    ))
+                    saved += 1
+        db.session.commit()
+    return jsonify({"ok": True, "saved": saved})
+
+
+@app.route("/inbox")
+def inbox():
+    """F3 reply inbox — WhatsApp (and future) inbound messages."""
+    msgs = InboxMessage.query.order_by(InboxMessage.id.desc()).limit(200).all()
+    return render_template("inbox.html", msgs=msgs)
+
+
+@app.route("/inbox/<int:mid>/reply", methods=["POST"])
+def inbox_reply(mid):
+    """Reply to an inbox message via its channel (WhatsApp reply-only)."""
+    m = db.session.get(InboxMessage, mid)
+    if not m:
+        flash("Message not found.")
+        return redirect(url_for("inbox"))
+    text = request.form.get("text", "").strip()
+    if not text:
+        flash("Reply text is required.")
+        return redirect(url_for("inbox"))
+    if m.channel == "whatsapp":
+        from adapters.whatsapp_cloud import WhatsAppAdapter
+        phone = m.sender_id.lstrip("+")
+        lead = Lead.query.filter_by(phone=phone).first()
+        if not lead:
+            lead = Lead(phone=phone, source="whatsapp_inbound")
+            db.session.add(lead)
+            db.session.flush()
+        result = WhatsAppAdapter().send_reply(lead, text)
+        if result.ok:
+            m.status = "replied"
+            db.session.commit()
+            flash("Reply sent.")
+        else:
+            flash(f"Reply failed: {result.detail}")
+    else:
+        flash(f"Reply not implemented for channel '{m.channel}' yet.")
+    return redirect(url_for("inbox"))
+
+
+@app.route("/monitor/x", methods=["GET", "POST"])
+def monitor_x():
+    """X (Twitter) recent-post monitoring — read-only, bearer token."""
+    posts, err = [], ""
+    query = request.args.get("q", "").strip()
+    if query:
+        from adapters.x_api import XAdapter
+        posts, err = XAdapter().search_recent(query, max_results=25)
+    return render_template("monitor_x.html", query=query, posts=posts, err=err)
 
 
 @app.route("/unsubscribe/<token>", methods=["GET", "POST"])

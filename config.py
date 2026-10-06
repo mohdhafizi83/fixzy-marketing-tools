@@ -35,6 +35,19 @@ REDSMS_SENDER_ID = os.getenv("REDSMS_SENDER_ID", "Fixzy")
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
 SEARXNG_URL = os.getenv("SEARXNG_URL", "")   # self-hosted alternative
 
+# --- F3: WhatsApp Cloud API (Meta) ----------------------------------------
+# Verified vs developers.facebook.com (Oct 2026): reply-only within the 24h
+# customer-service window; template messages for business-initiated contact.
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "")   # webhook verification
+
+# --- F3: X (Twitter) API v2 ----------------------------------------------
+# Verified vs docs.x.com (Oct 2026): pay-per-use, POST /2/tweets to publish.
+X_BEARER_TOKEN = os.getenv("X_BEARER_TOKEN", "")        # read (monitoring)
+X_API_KEY = os.getenv("X_API_KEY", "")                  # write (OAuth1)
+X_API_SECRET = os.getenv("X_API_SECRET", "")
+
 # Unsubscribe links must use a publicly reachable URL so recipients can click them
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:5558")
 
