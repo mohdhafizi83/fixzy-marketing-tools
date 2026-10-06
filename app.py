@@ -175,4 +175,6 @@ def telegram_webhook():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5558, debug=False)
+    # 0.0.0.0 supaya boleh diakses dari LAN (phone/desktop lain);
+    # jangan dedah ke internet terus — di sebalik reverse proxy/firewall sahaja
+    app.run(host="0.0.0.0", port=5558, debug=False)
