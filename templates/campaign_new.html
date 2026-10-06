@@ -9,7 +9,40 @@
       <option value="telegram">Telegram Bot</option>
     </select></p>
   <p>Subject (email only): <input type="text" name="subject"></p>
-  <textarea name="message" rows="10" required placeholder="Your message..."></textarea>
-  <p><button>Save (draft)</button></p>
+  <textarea name="message" id="message" rows="10" required placeholder="Your message..."></textarea>
+  <p>
+    <button>Save (draft)</button>
+    <button type="button" id="ai-draft" style="background:#6b3fa0">Draft with AI (local LLM, free)</button>
+  </p>
 </form>
+<p>AI brief: <input type="text" id="ai-brief" placeholder="e.g. Invite past customers to our Hari Raya open house next Saturday" style="max-width:640px">
+   <select id="ai-channel" style="width:120px">
+     <option value="email">email</option>
+     <option value="telegram">telegram</option>
+   </select></p>
+<div id="ai-status" style="color:#666"></div>
+<script>
+document.getElementById('ai-draft').addEventListener('click', async () => {
+  const brief = document.getElementById('ai-brief').value.trim();
+  const status = document.getElementById('ai-status');
+  if (!brief) { status.textContent = 'Type a brief first.'; return; }
+  status.textContent = 'Drafting with local LLM... (cold model may take ~1 minute)';
+  try {
+    const r = await fetch('{{ url_for("campaign_draft") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({brief: brief, channel: document.getElementById('ai-channel').value})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('message').value = d.draft;
+      status.textContent = 'Draft ready — review and edit before saving.';
+    } else {
+      status.textContent = 'AI draft failed: ' + d.error;
+    }
+  } catch (e) {
+    status.textContent = 'AI draft failed: ' + e;
+  }
+});
+</script>
 {% endblock %}

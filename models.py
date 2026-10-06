@@ -69,6 +69,7 @@ class Campaign(db.Model):
     subject = db.Column(db.String(255))                      # email only
     message = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(32), default="draft")       # draft/running/paused/done
+    scheduled_at = db.Column(db.DateTime)                   # UTC; when set, APScheduler fires the blast
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 

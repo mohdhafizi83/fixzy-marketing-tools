@@ -10,7 +10,7 @@ Routes:
   /telegram/webhook     bot /start -> register chat_id + consent
 """
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 import config
@@ -25,6 +25,38 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+
+# --- APScheduler: fire blasts whose scheduled_at has arrived -------------------
+from apscheduler.schedulers.background import BackgroundScheduler
+from scheduler import run_blast
+
+scheduler = BackgroundScheduler(timezone="UTC")
+
+
+def _schedule_existing_campaigns():
+    """On startup, re-arm all pending scheduled blasts (survives restarts)."""
+    with app.app_context():
+        pending = (Campaign.query
+                   .filter(Campaign.status == "draft",
+                           Campaign.scheduled_at.isnot(None),
+                           Campaign.scheduled_at > datetime.now(timezone.utc).replace(tzinfo=None))
+                   .all())
+        for c in pending:
+            scheduler.add_job(run_blast_job, "date", run_date=c.scheduled_at,
+                             args=[c.id], id=f"blast_{c.id}", replace_existing=True)
+        return len(pending)
+
+
+def run_blast_job(campaign_id: int):
+    """APScheduler entry point (module-level so it survives serialization)."""
+    run_blast(app, campaign_id)
+
+
+scheduler.start()
+with app.app_context():
+    n = _schedule_existing_campaigns()
+    if n:
+        print(f"Scheduler armed {n} pending scheduled blast(s).")
 
 
 def _get_or_create_lead(email=None, phone=None, source="") -> Lead:
@@ -133,7 +165,7 @@ def export_leads():
 
     fmt = request.args.get("fmt", "csv")
     leads = Lead.query.order_by(Lead.id).all()
-    ts = datetime.utcnow().strftime("%Y%m%d")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d")
 
     if fmt == "txt":
         buf = "\n".join(l.email for l in leads if l.email)
@@ -150,6 +182,20 @@ def export_leads():
     return Response(out.getvalue(), mimetype="text/csv",
                    headers={"Content-Disposition":
                            f"attachment; filename=leads_{ts}.csv"})
+
+
+@app.route("/campaign/draft", methods=["POST"])
+def campaign_draft():
+    """AI copy draft endpoint (local LLM, RM0). Returns JSON for the UI."""
+    from aicopy import draft_message
+    brief = (request.json or {}).get("brief", "").strip()
+    channel = (request.json or {}).get("channel", "email")
+    if not brief:
+        return jsonify({"ok": False, "error": "Brief is required"}), 400
+    draft, err = draft_message(brief, channel)
+    if draft is None:
+        return jsonify({"ok": False, "error": err}), 502
+    return jsonify({"ok": True, "draft": draft})
 
 
 @app.route("/campaign/new", methods=["GET", "POST"])
@@ -171,6 +217,33 @@ def campaign_start(cid):
     t = threading.Thread(target=run_blast, args=(app, cid), daemon=True)
     t.start()
     flash(f"Blast for campaign {cid} started (running in background).")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/campaign/<int:cid>/schedule", methods=["POST"])
+def campaign_schedule(cid):
+    """Schedule a draft campaign to blast at a specific UTC time."""
+    c = db.session.get(Campaign, cid)
+    if not c or c.status != "draft":
+        flash("Only draft campaigns can be scheduled.")
+        return redirect(url_for("dashboard"))
+    when_str = request.form.get("scheduled_at", "").strip()
+    if not when_str:
+        flash("A schedule time is required.")
+        return redirect(url_for("dashboard"))
+    try:
+        when = datetime.strptime(when_str, "%Y-%m-%dT%H:%M")
+    except ValueError:
+        flash("Invalid time format.")
+        return redirect(url_for("dashboard"))
+    if when <= datetime.now(timezone.utc).replace(tzinfo=None):
+        flash("Schedule time must be in the future (UTC).")
+        return redirect(url_for("dashboard"))
+    c.scheduled_at = when
+    db.session.commit()
+    scheduler.add_job(run_blast_job, "date", run_date=when,
+                     args=[c.id], id=f"blast_{c.id}", replace_existing=True)
+    flash(f"Campaign {c.id} scheduled for {when.isoformat()} UTC.")
     return redirect(url_for("dashboard"))
 
 
