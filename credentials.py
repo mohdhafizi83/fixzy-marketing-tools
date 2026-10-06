@@ -16,6 +16,7 @@ _ENV_DEFAULTS = {
     "mail_from": lambda: config.MAIL_FROM,
     # Telegram
     "telegram_bot_token": lambda: config.TELEGRAM_BOT_TOKEN,
+    "telegram_webhook_secret": lambda: config.TELEGRAM_WEBHOOK_SECRET,
     # Twilio SMS
     "twilio_account_sid": lambda: config.TWILIO_ACCOUNT_SID,
     "twilio_auth_token": lambda: config.TWILIO_AUTH_TOKEN,
@@ -66,6 +67,7 @@ CHANNEL_FIELDS = {
     ],
     "telegram": [
         ("telegram_bot_token", "Bot token (from @BotFather)", True),
+        ("telegram_webhook_secret", "Webhook secret (recommended: blocks forged updates)", True),
     ],
     "sms (Twilio)": [
         ("twilio_account_sid", "Account SID (AC...)", False),

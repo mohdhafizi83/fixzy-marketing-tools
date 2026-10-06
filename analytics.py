@@ -7,8 +7,9 @@ the dashboard simply shows zeros.
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from models import db, Event, Campaign, Suppression, Lead
 from sqlalchemy import func
+
+from models import Campaign, Event, Lead, Suppression, db
 
 
 def summary():

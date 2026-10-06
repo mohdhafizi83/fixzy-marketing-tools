@@ -1,12 +1,22 @@
 """Central configuration — all secrets come from .env, nothing hardcoded."""
 import os
+import secrets
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
+# Fail-closed secret key: a hardcoded fallback would let anyone forge session
+# cookies / CSRF tokens. If unset, generate a strong ephemeral key per process
+# (sessions simply do not survive restarts until the operator sets one).
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    print("WARNING: SECRET_KEY is not set in .env — generated an ephemeral "
+          "one. Sessions/CSRF tokens will not survive restarts. "
+          "Generate with: openssl rand -hex 32")
 SQLALCHEMY_DATABASE_URI = os.getenv(
     "DATABASE_URL", f"sqlite:///{BASE_DIR / 'fixzy.db'}"
 )
@@ -20,6 +30,10 @@ MAIL_FROM = os.getenv("MAIL_FROM", "")
 
 # Telegram bot
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+# Optional shared secret sent by Telegram as X-Telegram-Bot-Api-Secret-Token
+# when the webhook is registered with secret_token. When set, the webhook
+# FAILS CLOSED: requests without a matching header are rejected.
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 
 # Twilio SMS (Tier 1, verified vs twilio.com/docs)
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
@@ -80,3 +94,8 @@ RATE_LIMITS_PER_HOUR = {
 
 # AI copy drafts (local LLM, optional F1 hook)
 LLM_URL = os.getenv("LLM_URL", "http://localhost:8080")
+
+# SSRF guard: the crawler refuses private/loopback/link-local/reserved targets
+# (cloud metadata endpoints, internal LAN services). Set CRAWL_ALLOW_PRIVATE=1
+# only if you deliberately crawl internal sites you own.
+CRAWL_ALLOW_PRIVATE = os.getenv("CRAWL_ALLOW_PRIVATE", "") == "1"

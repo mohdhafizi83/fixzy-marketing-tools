@@ -9,8 +9,9 @@ Message length: Twilio bills per 160-char segment (GSM-7). We do not
 auto-trim; long messages simply cost more segments.
 """
 import requests
-from credentials import cred
+
 from adapters import BaseAdapter, SendResult
+from credentials import cred
 
 
 class TwilioSmsAdapter(BaseAdapter):

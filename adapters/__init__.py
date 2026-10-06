@@ -36,8 +36,8 @@ def get_adapter(channel: str) -> BaseAdapter:
         return TelegramAdapter()
     if channel == "sms":
         # Prefer Twilio when configured; fall back to RedSMS
-        from adapters.twilio_sms import TwilioSmsAdapter
         from adapters.redsms import RedSmsAdapter
+        from adapters.twilio_sms import TwilioSmsAdapter
         tw = TwilioSmsAdapter()
         return tw if tw.is_configured() else RedSmsAdapter()
     if channel == "whatsapp":

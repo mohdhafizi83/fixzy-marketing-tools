@@ -9,6 +9,7 @@ then .env as fallback. Returns result URLs; feed them to the crawler to
 extract contacts.
 """
 import requests
+
 import config
 
 

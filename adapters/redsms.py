@@ -10,8 +10,9 @@ The response codes below assume: positive number = credits remaining,
 Cost: ~RM0.04-0.09/message on prepaid credit.
 """
 import requests
-from credentials import cred
+
 from adapters import BaseAdapter, SendResult
+from credentials import cred
 
 
 class RedSmsAdapter(BaseAdapter):

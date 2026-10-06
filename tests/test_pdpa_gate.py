@@ -5,7 +5,7 @@ reach a contact without active consent and without being suppressed.
 """
 from datetime import datetime, timezone
 
-from models import db, Lead, Consent, Suppression
+from models import Consent, Lead, Suppression, db
 from scheduler import eligible_leads
 
 

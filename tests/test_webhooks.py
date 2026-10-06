@@ -45,7 +45,7 @@ def test_brevo_spam_suppresses_as_complained(app, client):
 
 def test_brevo_unsubscribe_revokes_consent(app, client):
     _set_secret(app, "s3cret")
-    from models import db, Lead, Consent
+    from models import Consent, Lead, db
     with app.app_context():
         lead = Lead(email="unsub@x.com", source="test")
         db.session.add(lead)
@@ -89,27 +89,49 @@ def test_meta_webhook_fail_closed(app, client):
 
 
 def test_meta_webhook_handshake_and_inbound(app, client):
+    import hashlib
+    import hmac
+    import json
+
     from models import Setting
     with app.app_context():
         Setting.set("messenger_verify_token", "vTok")
     r = client.get("/webhooks/meta?hub.mode=subscribe"
                   "&hub.verify_token=vTok&hub.challenge=42")
     assert r.status_code == 200 and r.data == b"42"
-    # inbound messenger message
-    r = client.post("/webhooks/meta", json={
+
+    def _signed(payload):
+        body = json.dumps(payload).encode()
+        sig = "sha256=" + hmac.new(b"vTok", body, hashlib.sha256).hexdigest()
+        return body, {"X-Hub-Signature-256": sig}
+
+    # inbound messenger message (signed — unsigned is now rejected)
+    body, hdrs = _signed({
         "object": "page",
         "entry": [{"messaging": [
             {"sender": {"id": "PSID1"},
              "message": {"mid": "m.1", "text": "hello"}}]}]})
+    r = client.post("/webhooks/meta", data=body,
+                   content_type="application/json", headers=hdrs)
     assert r.status_code == 200
+    # unsigned payload is rejected now that signatures are mandatory
+    r = client.post("/webhooks/meta", json={
+        "object": "page",
+        "entry": [{"messaging": [
+            {"sender": {"id": "PSID1"},
+             "message": {"mid": "m.9", "text": "forged"}}]}]})
+    assert r.status_code == 401
     from models import InboxMessage
     with app.app_context():
         m = InboxMessage.query.filter_by(external_id="m.1").first()
         assert m and m.channel == "messenger"
+        assert InboxMessage.query.filter_by(external_id="m.9").count() == 0
         # duplicate is deduped
-        client.post("/webhooks/meta", json={
+        body, hdrs = _signed({
             "object": "page",
             "entry": [{"messaging": [
                 {"sender": {"id": "PSID1"},
                  "message": {"mid": "m.1", "text": "dup"}}]}]})
+        client.post("/webhooks/meta", data=body,
+                    content_type="application/json", headers=hdrs)
         assert InboxMessage.query.filter_by(external_id="m.1").count() == 1

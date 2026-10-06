@@ -10,8 +10,9 @@ Verified vs docs.x.com (Oct 2026):
 DMing strangers is NOT available on any affordable X tier — do not add it.
 """
 import requests
-from credentials import cred
+
 from adapters import BaseAdapter, SendResult
+from credentials import cred
 
 
 class XAdapter(BaseAdapter):

@@ -7,8 +7,9 @@ chat_id is registered when the user sends /start to the bot, which our
 telegram_chat_id plus an active consent record.
 """
 import requests
-from credentials import cred
+
 from adapters import BaseAdapter, SendResult
+from credentials import cred
 
 
 class TelegramAdapter(BaseAdapter):

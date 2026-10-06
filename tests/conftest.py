@@ -10,7 +10,8 @@ import tempfile
 import pytest
 
 # Configure env BEFORE importing the app (config reads env at import time)
-_tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+_tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115 - name kept for the DB URI
+    suffix=".db", delete=False)
 _tmp.close()
 os.environ["DATABASE_URL"] = f"sqlite:///{_tmp.name}"
 os.environ["ADMIN_USER"] = "admin"

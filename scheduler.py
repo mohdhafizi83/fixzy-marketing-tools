@@ -11,7 +11,7 @@ resume when the next hourly window opens.
 import time
 from datetime import datetime, timezone
 
-from models import db, Lead, Consent, Suppression, Campaign, Event
+from models import Campaign, Consent, Event, Lead, Suppression, db
 
 
 def eligible_leads(app, campaign: Campaign) -> list[Lead]:

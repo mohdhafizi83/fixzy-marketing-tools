@@ -2,6 +2,7 @@
 {% block content %}
 <h2>Import Leads</h2>
 <form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
   <p><label><input type="radio" name="mode" value="paste" checked>
      <b>Paste text</b> — emails and/or phone numbers, any format</label></p>
   <p><label><input type="radio" name="mode" value="file">

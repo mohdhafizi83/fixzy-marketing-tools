@@ -1,5 +1,6 @@
 """F1 database schema: leads, consent ledger, suppression list, campaigns, events."""
 import secrets
+
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()

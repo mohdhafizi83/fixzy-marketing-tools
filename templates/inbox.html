@@ -16,6 +16,7 @@ WhatsApp replies only work within 24 hours of the sender's message.</p>
     <td>
       {% if m.channel == 'whatsapp' and m.status != 'archived' %}
       <form method="post" action="{{ url_for('inbox_reply', mid=m.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
         <input type="text" name="text" placeholder="Type reply..." style="width:180px">
         <button>Send</button>
       </form>

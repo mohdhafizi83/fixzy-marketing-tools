@@ -16,9 +16,10 @@ Cold-blasting WhatsApp = number banned. The capability flags below make the
 UI honest about this: whatsapp is NOT a blast channel.
 """
 import requests
+
 import config
-from credentials import cred
 from adapters import BaseAdapter, SendResult
+from credentials import cred
 
 GRAPH = f"https://graph.facebook.com/{config.GRAPH_API_VERSION}"
 

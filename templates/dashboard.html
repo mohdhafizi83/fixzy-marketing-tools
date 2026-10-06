@@ -29,9 +29,11 @@
     <td>{% if c.status in ('draft',) %}
       <form method="post" action="{{ url_for('campaign_start', cid=c.id) }}"
             onsubmit="return confirm('Start blast? Only leads with active consent and not suppressed will receive the message.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
         <button>Start blast</button>
       </form>
       <form method="post" action="{{ url_for('campaign_schedule', cid=c.id) }}" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
         <input type="datetime-local" name="scheduled_at" required style="width:190px">
         <button type="submit">Schedule (UTC)</button>
       </form>

@@ -2,6 +2,7 @@
 {% block content %}
 <h2>New Campaign</h2>
 <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
   <p>Name: <input type="text" name="name" required></p>
   <p>Channel:
     <select name="channel">
@@ -39,7 +40,8 @@ document.getElementById('ai-provider').addEventListener('change', async () => {
   sel.innerHTML = '<option value="">Auto-pick</option>';
   if (!pid) return;
   const r = await fetch('{{ url_for("settings_llm_models") }}', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
+    method: 'POST', headers: {'Content-Type': 'application/json',
+                             'X-CSRF-Token': '{{ csrf_token_value }}'},
     body: JSON.stringify({provider_id: parseInt(pid)})
   });
   const d = await r.json();
@@ -69,7 +71,8 @@ document.getElementById('ai-draft').addEventListener('click', async () => {
     if (model) body.model = model;
     const r = await fetch('{{ url_for("campaign_draft") }}', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ csrf_token_value }}'},
       body: JSON.stringify(body)
     });
     const d = await r.json();

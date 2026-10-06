@@ -17,6 +17,7 @@ Publishing requires OAuth1 credentials and is not wired to campaigns by design.<
     <td style="max-width:560px">{{ p.text }}</td>
     <td>
       <form method="post" action="{{ url_for('monitor_x_reply') }}" style="display:flex;gap:6px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
         <input type="hidden" name="tweet_id" value="{{ p.id }}">
         <input type="text" name="text" placeholder="Reply…" style="min-width:220px" required>
         <button type="submit">Reply</button>

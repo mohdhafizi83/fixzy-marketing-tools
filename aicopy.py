@@ -17,6 +17,7 @@ Pitfall handled: llama-swap returns 502 Bad Gateway while a cold model is
 loading/swapping. We retry a few times with a short backoff before giving up.
 """
 import time
+
 import requests
 
 import config

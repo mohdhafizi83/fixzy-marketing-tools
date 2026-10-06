@@ -4,6 +4,7 @@
 <p>You ({% if lead.email %}{{ lead.email }}{% endif %}{% if lead.phone %} {{ lead.phone }}{% endif %})
 will stop receiving messages via <b>{{ channel }}</b>.</p>
 <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
   <button>Confirm unsubscribe</button>
 </form>
 {% endblock %}

@@ -5,9 +5,11 @@ Official docs (help.brevo.com and developers.brevo.com/docs/smtp-integration):
   password = SMTP key. Free tier: 300 messages/day.
 """
 import asyncio
+
 import aiosmtplib
-from credentials import cred
+
 from adapters import BaseAdapter, SendResult
+from credentials import cred
 
 
 class BrevoEmailAdapter(BaseAdapter):

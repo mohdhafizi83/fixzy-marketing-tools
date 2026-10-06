@@ -8,6 +8,7 @@ SerpAPI: free 250 searches/month at serpapi.com. SearXNG: self-hosted, free.
 Values saved here override <code>.env</code>. Active backend:
 <b class="{{ 'ok' if search.backend != 'none' else 'bad' }}">{{ search.backend }}</b></p>
 <form method="post" action="{{ url_for('settings_search') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
   <p>SerpAPI key: <input type="text" name="serpapi_key" value="{{ search.serpapi_key }}"
      placeholder="serpapi_..." style="max-width:480px"></p>
   <p>SearXNG URL: <input type="text" name="searxng_url" value="{{ search.searxng_url }}"
@@ -25,6 +26,7 @@ The default provider is used when a campaign does not pick one.</p>
 
 <h3>Add a provider</h3>
 <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
   <input type="hidden" name="action" value="add">
   <p>Name: <input type="text" name="name" placeholder="Local (localhost)" required style="max-width:320px"></p>
   <p>Base URL: <input type="text" name="base_url" placeholder="http://localhost:8080  (or https://api.openai.com/v1)" required style="max-width:480px"></p>
@@ -48,11 +50,12 @@ The default provider is used when a campaign does not pick one.</p>
     </td>
     <td>
       {% if not row.p.is_default %}
-      <form method="post" style="display:inline"><input type="hidden" name="action" value="set_default">
+      <form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token_value }}"><input type="hidden" name="action" value="set_default">
         <input type="hidden" name="id" value="{{ row.p.id }}">
         <button>Set default</button></form>
       {% endif %}
       <form method="post" style="display:inline" onsubmit="return confirm('Delete this provider?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" value="{{ row.p.id }}">
         <button style="background:#b00020">Delete</button></form>

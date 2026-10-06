@@ -15,6 +15,7 @@ falls back to the <code>.env</code> default (if any).
   </span>
 </h3>
 <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
   {% for key, label, secret, value in g.rows %}
   <p>
     <label style="display:inline-block; min-width:220px"><b>{{ label }}</b></label>

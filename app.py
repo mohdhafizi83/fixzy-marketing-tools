@@ -9,22 +9,99 @@ Routes:
   /unsubscribe/<token>  unsubscribe page (PDPA) — GET asks, POST confirms
   /telegram/webhook     bot /start -> register chat_id + consent
 """
+import hashlib
+import hmac
+import secrets
 import threading
 from datetime import datetime, timezone
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
+
+from flask import (
+    Flask,
+    Response,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 import config
-from models import db, Lead, Consent, Suppression, Campaign, Event, InboxMessage
+from crawler import Crawler, check_target_allowed
 from extractor import extract_emails, extract_phones_my
-from crawler import Crawler
+from models import Campaign, Consent, Event, InboxMessage, Lead, Suppression, db
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = config.SECRET_KEY
 app.config["SQLALCHEMY_DATABASE_URI"] = config.SQLALCHEMY_DATABASE_URI
+# Upload cap: import files are small text/CSV; 2 MB is generous and prevents
+# memory-exhaustion via huge uploads.
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 db.init_app(app)
 
 with app.app_context():
     db.create_all()
+
+
+# --- Security headers ------------------------------------------------------
+@app.after_request
+def set_security_headers(resp):
+    """Baseline hardening headers on every response.
+
+    CSP is same-origin-only: the UI uses inline <script> blocks, so
+    'unsafe-inline' is required for scripts/styles but object/media/frame
+    ancestors are fully locked. The app is admin-authenticated and served on
+    a LAN/VPN; it is not a public content site.
+    """
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "same-origin")
+    resp.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+        "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; "
+        "form-action 'self'")
+    resp.headers.setdefault("Permissions-Policy",
+                           "camera=(), microphone=(), geolocation=()")
+    return resp
+
+
+# --- CSRF protection ------------------------------------------------------
+# Token in the Flask session; every state-changing (non-GET) request must
+# carry it as a form field (csrf_token) or X-CSRF-Token header.
+# Provider webhooks are exempt (third-party servers cannot hold our session);
+# they are protected by their own signature/secret verification instead.
+CSRF_EXEMPT_PREFIXES = ("/webhooks/", "/telegram/webhook")
+
+
+@app.before_request
+def csrf_protect():
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    if request.path.startswith(CSRF_EXEMPT_PREFIXES):
+        return None
+    token = session_token()
+    sent = (request.form.get("csrf_token")
+            or request.headers.get("X-CSRF-Token", ""))
+    if not token or not sent or not hmac.compare_digest(token, sent):
+        return "CSRF token missing or invalid.", 400
+
+
+def session_token() -> str:
+    """Return (creating if needed) the CSRF token stored in the session."""
+    from flask import session
+    tok = session.get("csrf_token")
+    if not tok:
+        tok = secrets.token_urlsafe(32)
+        session["csrf_token"] = tok
+    return tok
+
+
+@app.context_processor
+def inject_csrf():
+    """Expose the CSRF token so templates render it into forms and JS headers."""
+    return {"csrf_token_value": session_token()}
 
 
 # --- Access control -------------------------------------------------------
@@ -46,16 +123,22 @@ def require_admin_auth():
         if lan:
             return None
         return ("Forbidden: set ADMIN_PASSWORD in .env before exposing "
-                "this service publicly.", 403)
+                "this service publicly."), 403
     auth = request.authorization
-    if not auth or auth.username != config.ADMIN_USER or \
-            auth.password != config.ADMIN_PASSWORD:
+    if not auth or not auth.username or not auth.password:
+        return Response("Admin login required.", 401,
+                       {"WWW-Authenticate": 'Basic realm="Fixzy"'})
+    # Constant-time comparison: never leak username/password via timing.
+    user_ok = hmac.compare_digest(auth.username, config.ADMIN_USER)
+    pass_ok = hmac.compare_digest(auth.password, config.ADMIN_PASSWORD)
+    if not (user_ok and pass_ok):
         return Response("Admin login required.", 401,
                        {"WWW-Authenticate": 'Basic realm="Fixzy"'})
     return None
 
 # --- APScheduler: fire blasts whose scheduled_at has arrived -------------------
 from apscheduler.schedulers.background import BackgroundScheduler
+
 from scheduler import run_blast
 
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -130,6 +213,15 @@ def analytics():
                          failures=an.recent_failures())
 
 
+def _int_form(name: str, default: int, lo: int, hi: int) -> int:
+    """Parse an integer form field, clamped to [lo, hi]; default on garbage."""
+    try:
+        return max(lo, min(hi, int(request.form.get(name, default)))
+                   )
+    except (TypeError, ValueError):
+        return default
+
+
 @app.route("/import", methods=["GET", "POST"])
 def import_leads():
     if request.method == "GET":
@@ -140,12 +232,16 @@ def import_leads():
     text = request.form.get("text", "")
     added = {"email": 0, "phone": 0}
 
+    if mode not in ("paste", "file", "crawl", "search"):
+        flash("Unknown import mode.")
+        return redirect(url_for("import_leads"))
+
     # Optional uploaded file (.txt/.csv): its content is treated like pasted text
     upload = request.files.get("file")
     if upload and upload.filename:
         try:
             text = upload.read().decode("utf-8", errors="ignore")
-        except Exception:
+        except OSError:
             flash("Could not read the uploaded file.")
             return redirect(url_for("import_leads"))
         mode = "file"
@@ -170,8 +266,16 @@ def import_leads():
             url = text.strip()
             if not url.startswith("http"):
                 url = "http://" + url
-            c = Crawler(max_pages=int(request.form.get("max_pages", 20)))
-            emails, phones = c.crawl_site(url)
+            allowed, reason = check_target_allowed(url)
+            if not allowed:
+                flash(f"Crawl refused: {reason}")
+                return redirect(url_for("import_leads"))
+            c = Crawler(max_pages=_int_form("max_pages", 20, 1, 200))
+            try:
+                emails, phones = c.crawl_site(url)
+            except ValueError as e:
+                flash(f"Crawl refused: {e}")
+                return redirect(url_for("import_leads"))
             for e in emails:
                 before = Lead.query.filter_by(email=e.lower()).first()
                 _get_or_create_lead(email=e, source=f"crawl:{url}")
@@ -189,8 +293,12 @@ def import_leads():
             if not urls:
                 flash(f"Search failed: {err}")
                 return redirect(url_for("import_leads"))
-            c = Crawler(max_pages=int(request.form.get("max_pages", 5)))
+            c = Crawler(max_pages=_int_form("max_pages", 5, 1, 200))
             for u in urls:
+                # Search results are third-party URLs: apply the same SSRF guard
+                allowed, _reason = check_target_allowed(u)
+                if not allowed:
+                    continue
                 e_list, p_list = c.crawl_site(u)
                 for e in e_list:
                     before = Lead.query.filter_by(email=e.lower()).first()
@@ -221,7 +329,9 @@ def export_leads():
     CSV columns: email, phone, telegram_chat_id, source, created_at
     TXT: one email per line (matches the legacy output format).
     """
-    import csv, io
+    import csv
+    import io
+
     from flask import Response
 
     fmt = request.args.get("fmt", "csv")
@@ -285,13 +395,13 @@ def settings_llm():
             db.session.commit()
             flash(f"Provider '{name}' added.")
         elif action == "set_default":
-            pid = int(request.form.get("id", 0))
+            pid = _int_form("id", 0, 1, 10**9)
             for p in LlmProvider.query.all():
                 p.is_default = (p.id == pid)
             db.session.commit()
             flash("Default provider updated.")
         elif action == "delete":
-            pid = int(request.form.get("id", 0))
+            pid = _int_form("id", 0, 1, 10**9)
             p = db.session.get(LlmProvider, pid)
             if p:
                 db.session.delete(p)
@@ -307,8 +417,8 @@ def settings_llm():
         models, err = list_models(p)
         info.append({"p": p, "models": models, "err": err})
     # Search API settings (DB overrides .env)
-    from models import Setting
     import searchapi
+    from models import Setting
     search_cfg = {
         "serpapi_key": Setting.get("serpapi_key") or config.SERPAPI_KEY,
         "searxng_url": Setting.get("searxng_url") or config.SEARXNG_URL,
@@ -344,8 +454,8 @@ def settings_channels():
     Every adapter reads through credentials.cred(), so saving a value here
     takes effect immediately — no restart, no file editing required.
     """
-    from models import Setting
     from credentials import CHANNEL_FIELDS, cred
+    from models import Setting
     if request.method == "POST":
         saved = 0
         for group, fields in CHANNEL_FIELDS.items():
@@ -365,7 +475,7 @@ def settings_channels():
         ch = group.split(" ")[0].lower()
         try:
             configured = get_adapter(ch).is_configured()
-        except Exception:
+        except Exception:  # noqa: BLE001 - badge must never break the page
             configured = False
         groups.append({"group": group, "rows": rows, "configured": configured})
     return render_template("settings_channels.html", groups=groups)
@@ -374,9 +484,12 @@ def settings_channels():
 @app.route("/settings/llm/models", methods=["POST"])
 def settings_llm_models():
     """Return a provider's model list as JSON (for the campaign form dropdown)."""
-    from models import LlmProvider
     from aicopy import list_models
-    pid = int((request.json or {}).get("provider_id", 0))
+    from models import LlmProvider
+    try:
+        pid = int((request.json or {}).get("provider_id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid provider_id"}), 400
     p = db.session.get(LlmProvider, pid)
     if not p:
         return jsonify({"ok": False, "error": "Provider not found"}), 404
@@ -387,9 +500,16 @@ def settings_llm_models():
 @app.route("/campaign/new", methods=["GET", "POST"])
 def campaign_new():
     if request.method == "POST":
-        c = Campaign(name=request.form["name"], channel=request.form["channel"],
-                    subject=request.form.get("subject", ""),
-                    message=request.form["message"])
+        name = request.form.get("name", "").strip()
+        channel = request.form.get("channel", "").strip()
+        message = request.form.get("message", "").strip()
+        # Whitelist channels that actually support blasts (capability flags)
+        if not name or not message or channel not in ("email", "telegram", "sms"):
+            flash("Name, a valid channel and a message are required.")
+            return redirect(url_for("campaign_new"))
+        c = Campaign(name=name, channel=channel,
+                    subject=request.form.get("subject", "").strip(),
+                    message=message)
         db.session.add(c)
         db.session.commit()
         flash(f"Campaign '{c.name}' created (id {c.id}).")
@@ -419,10 +539,14 @@ def campaign_schedule(cid):
         flash("A schedule time is required.")
         return redirect(url_for("dashboard"))
     try:
-        when = datetime.strptime(when_str, "%Y-%m-%dT%H:%M")
+        # Input is a datetime-local picker value (no zone); treated as UTC below.
+        when = datetime.strptime(when_str, "%Y-%m-%dT%H:%M")  # noqa: DTZ007
     except ValueError:
         flash("Invalid time format.")
         return redirect(url_for("dashboard"))
+    # Store as naive UTC (the whole app treats DB datetimes as naive UTC);
+    # interpret the input as UTC so the blast fires at the intended instant.
+    when = when.replace(tzinfo=timezone.utc).replace(tzinfo=None)
     if when <= datetime.now(timezone.utc).replace(tzinfo=None):
         flash("Schedule time must be in the future (UTC).")
         return redirect(url_for("dashboard"))
@@ -444,26 +568,27 @@ def whatsapp_webhook():
     from credentials import cred
     if request.method == "GET":
         mode = request.args.get("hub.mode")
-        token = request.args.get("hub.verify_token")
+        token = request.args.get("hub.verify_token", "")
         # Reject if no secret configured — empty must never match empty
-        if not cred("whatsapp_app_secret"):
+        secret = cred("whatsapp_app_secret")
+        if not secret:
             return "WHATSAPP_APP_SECRET not configured", 403
-        if mode == "subscribe" and token == cred("whatsapp_app_secret"):
+        if mode == "subscribe" and hmac.compare_digest(token, secret):
             return request.args.get("hub.challenge", ""), 200
         return "verification failed", 403
 
     data = request.get_json(silent=True) or {}
-    # Meta-recommended integrity check: if the X-Hub-Signature-256 header is
-    # present, verify HMAC-SHA256(body, app_secret) before trusting the payload.
+    # Integrity check: X-Hub-Signature-256 = HMAC-SHA256(body, app_secret)
+    # is REQUIRED whenever the app secret is configured. A payload without a
+    # valid signature is never trusted, regardless of how well-formed it looks.
     sig_header = request.headers.get("X-Hub-Signature-256", "")
-    if sig_header:
-        import hashlib
-        import hmac
-        expected = "sha256=" + hmac.new(
-            cred("whatsapp_app_secret").encode(), request.get_data(),
-            hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig_header, expected):
-            return "invalid signature", 401
+    secret = cred("whatsapp_app_secret")
+    if not secret:
+        return "whatsapp_app_secret not configured", 403
+    expected = "sha256=" + hmac.new(
+        secret.encode(), request.get_data(), hashlib.sha256).hexdigest()
+    if not sig_header or not hmac.compare_digest(sig_header, expected):
+        return "invalid or missing signature", 401
     saved = 0
     with app.app_context():
         for entry in data.get("entry", []):
@@ -502,27 +627,28 @@ def meta_messaging_webhook():
     from credentials import cred
     if request.method == "GET":
         mode = request.args.get("hub.mode")
-        token = request.args.get("hub.verify_token")
+        token = request.args.get("hub.verify_token", "")
         # Fail closed: unset verify token must never match anything
-        if not cred("messenger_verify_token"):
-            return "messenger_verify_token not configured " \
-                   "(Settings -> Channels)", 403
-        if mode == "subscribe" and token == cred("messenger_verify_token"):
+        secret = cred("messenger_verify_token")
+        if not secret:
+            return ("messenger_verify_token not configured "
+                    "(Settings -> Channels)"), 403
+        if mode == "subscribe" and hmac.compare_digest(token, secret):
             return request.args.get("hub.challenge", ""), 200
         return "verification failed", 403
 
     data = request.get_json(silent=True) or {}
-    # Integrity check identical to WhatsApp webhook: verify
-    # X-Hub-Signature-256 = HMAC-SHA256(body, verify token) when present.
+    # Integrity check identical to WhatsApp webhook: X-Hub-Signature-256 =
+    # HMAC-SHA256(body, verify token) is REQUIRED when the token is set.
     sig_header = request.headers.get("X-Hub-Signature-256", "")
-    if sig_header:
-        import hashlib
-        import hmac
-        expected = "sha256=" + hmac.new(
-            cred("messenger_verify_token").encode(), request.get_data(),
-            hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig_header, expected):
-            return "invalid signature", 401
+    secret = cred("messenger_verify_token")
+    if not secret:
+        return ("messenger_verify_token not configured "
+                "(Settings -> Channels)"), 403
+    expected = "sha256=" + hmac.new(
+        secret.encode(), request.get_data(), hashlib.sha256).hexdigest()
+    if not sig_header or not hmac.compare_digest(sig_header, expected):
+        return "invalid or missing signature", 401
     obj = data.get("object", "")
     if obj not in ("page", "instagram"):
         return jsonify({"ok": False, "error": f"unknown object '{obj}'"}), 400
@@ -573,7 +699,8 @@ def brevo_webhook():
     """
     from credentials import cred
     secret = cred("brevo_webhook_secret")
-    if not secret or request.args.get("key") != secret:
+    if not secret or not hmac.compare_digest(
+            request.args.get("key", ""), secret):
         return "invalid or missing webhook key", 403
 
     data = request.get_json(silent=True) or {}
@@ -727,7 +854,18 @@ def unsubscribe(token):
 
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook():
-    """Telegram update — if the text is /start, register chat_id + telegram consent."""
+    """Telegram update — if the text is /start, register chat_id + telegram consent.
+
+    Security: when TELEGRAM_WEBHOOK_SECRET is configured, the request must
+    carry a matching X-Telegram-Bot-Api-Secret-Token header (fail closed).
+    Without it, anyone who discovers the URL could forge /start updates.
+    """
+    from credentials import cred
+    secret = cred("telegram_webhook_secret")
+    if secret:
+        got = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if not hmac.compare_digest(got, secret):
+            return "invalid webhook secret", 403
     data = request.get_json(silent=True) or {}
     msg = data.get("message") or {}
     chat = msg.get("chat") or {}
@@ -749,4 +887,6 @@ def telegram_webhook():
 if __name__ == "__main__":
     # Bind 0.0.0.0 so the UI is reachable from the LAN (other phones/desktops).
     # Do NOT expose this directly to the internet — keep it behind a reverse proxy/firewall.
-    app.run(host="0.0.0.0", port=5558, debug=False)
+    # nosec B104: intentional LAN bind per project requirement (owner tests from
+    # phones on the LAN); auth + fail-closed rules protect non-LAN callers.
+    app.run(host="0.0.0.0", port=5558, debug=False)  # nosec B104

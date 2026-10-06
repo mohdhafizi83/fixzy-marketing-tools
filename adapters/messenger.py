@@ -18,9 +18,10 @@ Like the WhatsApp adapter, send() REFUSES blasts by design; only
 send_reply() works, and only inside the window.
 """
 import requests
+
 import config
-from credentials import cred
 from adapters import BaseAdapter, SendResult
+from credentials import cred
 
 GRAPH = f"https://graph.facebook.com/{config.GRAPH_API_VERSION}"
 
@@ -29,7 +30,7 @@ class _MetaMessagingBase(BaseAdapter):
     """Shared Send API logic for Messenger and Instagram Direct."""
     supports_outbound = False   # reply-only: no blind blasts
     reply_only = True
-    token_key = ""              # which credential holds the send token
+    token_key = ""  # nosec B105 - credential KEY NAME resolved via cred(), not a secret
 
     def is_configured(self) -> bool:
         return bool(cred(self.token_key))
@@ -71,9 +72,9 @@ class _MetaMessagingBase(BaseAdapter):
 
 class MessengerAdapter(_MetaMessagingBase):
     channel = "messenger"
-    token_key = "messenger_page_token"
+    token_key = "messenger_page_token"  # nosec B105 - key NAME, not a secret
 
 
 class InstagramAdapter(_MetaMessagingBase):
     channel = "instagram"
-    token_key = "instagram_access_token"
+    token_key = "instagram_access_token"  # nosec B105 - key NAME, not a secret
