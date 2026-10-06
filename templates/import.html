@@ -2,16 +2,51 @@
 {% block content %}
 <h2>Import Leads</h2>
 <form method="post" enctype="multipart/form-data">
-  <p><label><input type="radio" name="mode" value="paste" checked> Paste text (emails/phones)</label></p>
-  <p><label><input type="radio" name="mode" value="file"> Upload a .txt / .csv file</label>
+  <p><label><input type="radio" name="mode" value="paste" checked>
+     <b>Paste text</b> — emails and/or phone numbers, any format</label></p>
+  <p><label><input type="radio" name="mode" value="file">
+     <b>Upload file</b> (.txt / .csv)</label>
      <input type="file" name="file" accept=".txt,.csv"></p>
-  <p><label><input type="radio" name="mode" value="crawl"> Crawl an entire website</label>
+  <p><label><input type="radio" name="mode" value="crawl">
+     <b>Crawl one website</b> — enter its URL in the box below</label>
      <input type="number" name="max_pages" value="20" min="1" max="200" style="width:80px"> max pages</p>
-  <p><label><input type="radio" name="mode" value="search"> Search API discovery (SerpAPI / SearXNG)</label>
-     <span style="color:#666">— enter a query like: "kedai kopi KL contact"; top 5 results are crawled</span></p>
-  <textarea name="text" rows="12" placeholder="jane@example.com, 012-345 6789, +601****4567 ... or http://target-site.com"></textarea>
+  <p><label><input type="radio" name="mode" value="search">
+     <b>Search API discovery</b> — enter a search query in the box below;
+     the top 5 result pages are crawled for contacts</label></p>
+
+  <textarea name="text" id="import-text" rows="10"
+    placeholder="jane@example.com, 012-345 6789, +601****4567"></textarea>
   <p><button>Import</button></p>
 </form>
-<p style="color:#666">Note: a manual import is recorded as email consent (ledger source <code>import_paste</code>).
-For crawled sources, make sure the data source complies with PDPA before blasting.</p>
+
+<p style="color:#666">Note: a manual import is recorded as email consent (ledger source
+<code>import_paste</code>). For crawled or searched sources, make sure the data source
+complies with PDPA before blasting.</p>
+
+<h3>Search backend status</h3>
+{% if search_backend == 'serpapi' %}
+  <p class="ok">Active backend: <b>SerpAPI</b> — queries go to serpapi.com (Google results).
+  Each query uses 1 credit from your monthly quota.</p>
+{% elif search_backend == 'searxng' %}
+  <p class="ok">Active backend: <b>SearXNG</b> — queries go to your self-hosted instance.
+  Free, no quota.</p>
+{% else %}
+  <p class="bad">No search backend configured — "Search API discovery" will fail.
+  Add a SerpAPI key or SearXNG URL in <a href="{{ url_for('settings_llm') }}">Settings</a>
+  (there is a "Test search" button there to verify it works).</p>
+{% endif %}
+
+<script>
+// Change the textarea placeholder to match the selected mode
+const hints = {
+  paste:   "jane@example.com, 012-345 6789, +601****4567",
+  file:    "(use the file picker above; this box is ignored for file uploads)",
+  crawl:   "http://target-website.com",
+  search:  "kedai kopi kuala lumpur contact"
+};
+document.querySelectorAll('input[name=mode]').forEach(r =>
+  r.addEventListener('change', () => {
+    document.getElementById('import-text').placeholder = hints[r.value] || "";
+  }));
+</script>
 {% endblock %}

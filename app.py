@@ -105,7 +105,8 @@ def analytics():
 @app.route("/import", methods=["GET", "POST"])
 def import_leads():
     if request.method == "GET":
-        return render_template("import.html")
+        import searchapi
+        return render_template("import.html", search_backend=searchapi.active_backend())
 
     mode = request.form.get("mode")
     text = request.form.get("text", "")
