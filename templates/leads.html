@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Leads (500 terkini)</h2>
+<table>
+  <tr><th>ID</th><th>Email</th><th>Telefon</th><th>Telegram</th><th>Sumber</th>
+      <th>Consent email</th><th>Consent TG</th></tr>
+  {% for l in leads %}
+  <tr>
+    <td>{{ l.id }}</td><td>{{ l.email or '—' }}</td><td>{{ l.phone or '—' }}</td>
+    <td>{{ l.telegram_chat_id or '—' }}</td><td>{{ l.source or '—' }}</td>
+    <td>{{ '✓' if Consent.active_for(l.id, 'email') else '✗' }}</td>
+    <td>{{ '✓' if Consent.active_for(l.id, 'telegram') else '✗' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

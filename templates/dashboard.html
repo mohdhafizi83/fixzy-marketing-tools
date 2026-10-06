@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Dashboard</h2>
+<div class="cards">
+  <div class="card"><b>{{ n_leads }}</b> Leads</div>
+  <div class="card"><b>{{ n_campaigns }}</b> Campaigns</div>
+  <div class="card"><b>{{ n_suppressed }}</b> Suppressed</div>
+</div>
+
+<h3>Status channel</h3>
+<table>
+  <tr><th>Channel</th><th>Kredensial</th><th>Outbound blast</th></tr>
+  {% for ch, st in channels.items() %}
+  <tr>
+    <td>{{ ch }}</td>
+    <td class="{{ 'ok' if st.configured else 'bad' }}">
+      {{ '✓ configured' if st.configured else '✗ belum set (.env)' }}</td>
+    <td>{{ '✓ ya' if st.outbound else '— tidak' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h3>Campaign terkini</h3>
+<table>
+  <tr><th>ID</th><th>Nama</th><th>Channel</th><th>Status</th><th></th></tr>
+  {% for c in campaigns %}
+  <tr>
+    <td>{{ c.id }}</td><td>{{ c.name }}</td><td>{{ c.channel }}</td><td>{{ c.status }}</td>
+    <td>{% if c.status in ('draft',) %}
+      <form method="post" action="{{ url_for('campaign_start', cid=c.id) }}"
+            onsubmit="return confirm('Mula blast? Hanya lead dengan consent aktif & bukan suppressed akan diterima.');">
+        <button>Start blast</button>
+      </form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}
