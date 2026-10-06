@@ -1,7 +1,8 @@
 """WhatsApp Cloud API adapter (Meta) — TIER 2: REPLY-ONLY.
 
-Verified vs developers.facebook.com (Oct 2026):
-  POST https://graph.facebook.com/v21.0/{PHONE_NUMBER_ID}/messages
+Verified vs developers.facebook.com (Oct 2026; API version from
+config.GRAPH_API_VERSION, currently v24.0 — available until Feb 2028):
+  POST https://graph.facebook.com/{VERSION}/{PHONE_NUMBER_ID}/messages
   Free-form text messages are ONLY deliverable within the 24-hour customer
   service window that opens when the USER messages us first.
   Outside that window, only pre-approved TEMPLATE messages work, and
@@ -15,10 +16,11 @@ Cold-blasting WhatsApp = number banned. The capability flags below make the
 UI honest about this: whatsapp is NOT a blast channel.
 """
 import requests
+import config
 from credentials import cred
 from adapters import BaseAdapter, SendResult
 
-GRAPH = "https://graph.facebook.com/v21.0"
+GRAPH = f"https://graph.facebook.com/{config.GRAPH_API_VERSION}"
 
 
 class WhatsAppAdapter(BaseAdapter):

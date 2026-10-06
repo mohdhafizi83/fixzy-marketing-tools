@@ -72,6 +72,9 @@ list. Key variables:
 - **F2 (built):** MY SMS gateway + search API + analytics dashboard
 - **F3 (built):** WhatsApp Cloud API (reply-only) + Messenger/Instagram Direct
   reply inbox + X monitoring
+- **Provider compliance:** every adapter audited against official provider
+  docs — see [PROVIDER_COMPLIANCE.md](PROVIDER_COMPLIANCE.md) (endpoints,
+  auth, payload shapes, webhook signature verification, known gaps)
 - **Deployment (active):** systemd user unit `fixzy-marketing-tools.service` +
   Tailscale funnel HTTPS (`tailscale funnel --bg 5558`). Admin login required
   for all UI paths except unsubscribe pages and provider webhooks

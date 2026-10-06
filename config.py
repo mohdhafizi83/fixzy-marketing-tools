@@ -50,6 +50,12 @@ X_API_SECRET = os.getenv("X_API_SECRET", "")            # consumer secret
 X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")        # user access token
 X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")      # user access secret
 
+# Meta Graph API version used by WhatsApp/Messenger/Instagram adapters.
+# Verified vs developers.facebook.com/docs/graph-api/changelog (Oct 2026):
+# v24.0 released Oct 8 2025, available until Feb 18 2028. Bump this single
+# constant when Meta releases a newer version.
+GRAPH_API_VERSION = os.getenv("GRAPH_API_VERSION", "v24.0")
+
 # Meta messaging: Messenger (FB Page) + Instagram Direct share one webhook
 MESSENGER_VERIFY_TOKEN = os.getenv("MESSENGER_VERIFY_TOKEN", "")
 MESSENGER_PAGE_TOKEN = os.getenv("MESSENGER_PAGE_TOKEN", "")

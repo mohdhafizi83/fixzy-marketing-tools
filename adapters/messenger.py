@@ -4,8 +4,8 @@ Verified vs developers.facebook.com (Meta for Developers, Oct 2026):
   - Webhooks: same hub.challenge handshake as WhatsApp. Inbound messages
     arrive under entry[].messaging[] — object "page" for Messenger,
     object "instagram" for Instagram Direct. Both share this structure.
-  - Send API (shared by both products):
-      POST https://graph.facebook.com/v21.0/me/messages
+  - Send API (shared by both products; version from config.GRAPH_API_VERSION):
+      POST https://graph.facebook.com/{VERSION}/me/messages
       body: {"recipient": {"id": <PSID>},
              "messaging_type": "RESPONSE",
              "message": {"text": "..."}}
@@ -18,10 +18,11 @@ Like the WhatsApp adapter, send() REFUSES blasts by design; only
 send_reply() works, and only inside the window.
 """
 import requests
+import config
 from credentials import cred
 from adapters import BaseAdapter, SendResult
 
-GRAPH = "https://graph.facebook.com/v21.0"
+GRAPH = f"https://graph.facebook.com/{config.GRAPH_API_VERSION}"
 
 
 class _MetaMessagingBase(BaseAdapter):

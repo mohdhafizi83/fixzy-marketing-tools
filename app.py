@@ -441,17 +441,29 @@ def whatsapp_webhook():
     GET  -> hub.challenge verification (Meta's subscription handshake)
     POST -> store inbound messages in the reply inbox (dedup by message id)
     """
+    from credentials import cred
     if request.method == "GET":
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         # Reject if no secret configured — empty must never match empty
-        if not config.WHATSAPP_APP_SECRET:
+        if not cred("whatsapp_app_secret"):
             return "WHATSAPP_APP_SECRET not configured", 403
-        if mode == "subscribe" and token == config.WHATSAPP_APP_SECRET:
+        if mode == "subscribe" and token == cred("whatsapp_app_secret"):
             return request.args.get("hub.challenge", ""), 200
         return "verification failed", 403
 
     data = request.get_json(silent=True) or {}
+    # Meta-recommended integrity check: if the X-Hub-Signature-256 header is
+    # present, verify HMAC-SHA256(body, app_secret) before trusting the payload.
+    sig_header = request.headers.get("X-Hub-Signature-256", "")
+    if sig_header:
+        import hashlib
+        import hmac
+        expected = "sha256=" + hmac.new(
+            cred("whatsapp_app_secret").encode(), request.get_data(),
+            hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig_header, expected):
+            return "invalid signature", 401
     saved = 0
     with app.app_context():
         for entry in data.get("entry", []):
@@ -500,6 +512,17 @@ def meta_messaging_webhook():
         return "verification failed", 403
 
     data = request.get_json(silent=True) or {}
+    # Integrity check identical to WhatsApp webhook: verify
+    # X-Hub-Signature-256 = HMAC-SHA256(body, verify token) when present.
+    sig_header = request.headers.get("X-Hub-Signature-256", "")
+    if sig_header:
+        import hashlib
+        import hmac
+        expected = "sha256=" + hmac.new(
+            cred("messenger_verify_token").encode(), request.get_data(),
+            hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig_header, expected):
+            return "invalid signature", 401
     obj = data.get("object", "")
     if obj not in ("page", "instagram"):
         return jsonify({"ok": False, "error": f"unknown object '{obj}'"}), 400
