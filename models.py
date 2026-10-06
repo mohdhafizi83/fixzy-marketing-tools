@@ -101,3 +101,30 @@ class LlmProvider(db.Model):
     default_model = db.Column(db.String(128), default="")
     is_default = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+
+class Setting(db.Model):
+    """Simple key-value app settings editable from the Settings UI.
+
+    DB values override .env values (env acts as the default). Used for
+    Search API credentials so the owner can manage them without editing files.
+    """
+    __tablename__ = "settings"
+    key = db.Column(db.String(64), primary_key=True)
+    value = db.Column(db.String(512), default="")
+    updated_at = db.Column(db.DateTime, server_default=db.func.now(),
+                          onupdate=db.func.now())
+
+    @classmethod
+    def get(cls, key: str, default: str = "") -> str:
+        row = db.session.get(cls, key)
+        return row.value if row and row.value else default
+
+    @classmethod
+    def set(cls, key: str, value: str):
+        row = db.session.get(cls, key)
+        if row:
+            row.value = value
+        else:
+            db.session.add(cls(key=key, value=value))
+        db.session.commit()

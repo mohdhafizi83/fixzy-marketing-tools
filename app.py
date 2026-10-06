@@ -277,7 +277,35 @@ def settings_llm():
     for p in providers:
         models, err = list_models(p)
         info.append({"p": p, "models": models, "err": err})
-    return render_template("settings_llm.html", info=info)
+    # Search API settings (DB overrides .env)
+    from models import Setting
+    import searchapi
+    search_cfg = {
+        "serpapi_key": Setting.get("serpapi_key") or config.SERPAPI_KEY,
+        "searxng_url": Setting.get("searxng_url") or config.SEARXNG_URL,
+        "backend": searchapi.active_backend(),
+    }
+    return render_template("settings_llm.html", info=info, search=search_cfg)
+
+
+@app.route("/settings/search", methods=["POST"])
+def settings_search():
+    """Save Search API credentials (SerpAPI key / SearXNG URL) from the UI."""
+    from models import Setting
+    action = request.form.get("action")
+    if action == "save":
+        Setting.set("serpapi_key", request.form.get("serpapi_key", "").strip())
+        Setting.set("searxng_url", request.form.get("searxng_url", "").strip())
+        flash("Search API settings saved.")
+    elif action == "test":
+        import searchapi
+        urls, err = searchapi.search("test query malaysia", num=3)
+        if urls:
+            flash(f"Search API works — backend '{searchapi.active_backend()}' "
+                  f"returned {len(urls)} URLs. First: {urls[0]}")
+        else:
+            flash(f"Search test FAILED: {err}")
+    return redirect(url_for("settings_llm"))
 
 
 @app.route("/settings/llm/models", methods=["POST"])

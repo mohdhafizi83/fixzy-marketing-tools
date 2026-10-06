@@ -1,6 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Settings — LLM Providers</h2>
+<h2>Settings</h2>
+
+<h3>Search API (lead discovery)</h3>
+<p style="color:#666">Used by the "Search API discovery" import mode.
+SerpAPI: free 250 searches/month at serpapi.com. SearXNG: self-hosted, free.
+Values saved here override <code>.env</code>. Active backend:
+<b class="{{ 'ok' if search.backend != 'none' else 'bad' }}">{{ search.backend }}</b></p>
+<form method="post" action="{{ url_for('settings_search') }}">
+  <p>SerpAPI key: <input type="text" name="serpapi_key" value="{{ search.serpapi_key }}"
+     placeholder="serpapi_..." style="max-width:480px"></p>
+  <p>SearXNG URL: <input type="text" name="searxng_url" value="{{ search.searxng_url }}"
+     placeholder="http://localhost:8888" style="max-width:480px"></p>
+  <p>
+    <button type="submit" name="action" value="save">Save</button>
+    <button type="submit" name="action" value="test" style="background:#6b3fa0">Test search</button>
+  </p>
+</form>
+
+<h3>LLM Providers (AI copy drafts)</h3>
 <p style="color:#666">Any OpenAI-compatible endpoint works. Local (llama.cpp / Ollama /
 llama-swap) needs no API key. Cloud (OpenAI / OpenRouter / Groq) needs one.
 The default provider is used when a campaign does not pick one.</p>
