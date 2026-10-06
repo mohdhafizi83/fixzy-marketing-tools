@@ -15,7 +15,7 @@ Cold-blasting WhatsApp = number banned. The capability flags below make the
 UI honest about this: whatsapp is NOT a blast channel.
 """
 import requests
-import config
+from credentials import cred
 from adapters import BaseAdapter, SendResult
 
 GRAPH = "https://graph.facebook.com/v21.0"
@@ -28,7 +28,7 @@ class WhatsAppAdapter(BaseAdapter):
     reply_only = True
 
     def is_configured(self) -> bool:
-        return bool(config.WHATSAPP_ACCESS_TOKEN and config.WHATSAPP_PHONE_NUMBER_ID)
+        return bool(cred("whatsapp_access_token") and cred("whatsapp_phone_number_id"))
 
     def send(self, lead, message: str, subject: str | None = None) -> SendResult:
         return SendResult(False,
@@ -74,9 +74,9 @@ class WhatsAppAdapter(BaseAdapter):
     def _post(self, payload) -> SendResult:
         try:
             r = requests.post(
-                f"{GRAPH}/{config.WHATSAPP_PHONE_NUMBER_ID}/messages",
+                f"{GRAPH}/{cred('whatsapp_phone_number_id')}/messages",
                 json=payload,
-                headers={"Authorization": f"Bearer {config.WHATSAPP_ACCESS_TOKEN}"},
+                headers={"Authorization": f"Bearer {cred('whatsapp_access_token')}"},
                 timeout=20,
             )
             data = r.json()

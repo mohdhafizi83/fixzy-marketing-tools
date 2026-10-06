@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Channel credentials</h2>
+<p style="color:#666">
+Fill in the API keys for each channel you want to use. Values saved here are
+stored in the database and take effect immediately — you do not need to edit
+<code>.env</code> or restart the server. If a field is left empty, the tool
+falls back to the <code>.env</code> default (if any).
+</p>
+
+{% for g in groups %}
+<h3>{{ g.group }}
+  <span class="{{ 'ok' if g.configured else 'bad' }}">
+    [{{ 'configured' if g.configured else 'not configured' }}]
+  </span>
+</h3>
+<form method="post">
+  {% for key, label, secret, value in g.rows %}
+  <p>
+    <label style="display:inline-block; min-width:220px"><b>{{ label }}</b></label>
+    <input type="{{ 'password' if secret else 'text' }}" name="cred_{{ key }}"
+           value="{{ value }}" style="max-width:420px" autocomplete="off">
+  </p>
+  {% endfor %}
+  <p><button type="submit">Save {{ g.group }}</button></p>
+</form>
+{% endfor %}
+
+<h3>Where do I get these keys?</h3>
+<ul style="color:#555">
+  <li><b>Email (Brevo):</b> brevo.com → SMTP &amp; API → SMTP key. Free: 300 emails/day.
+      Use your own verified sending domain for best deliverability.</li>
+  <li><b>Telegram:</b> talk to @BotFather on Telegram → /newbot → copy the token.
+      Free. You can only message users who sent /start to your bot first.</li>
+  <li><b>Twilio SMS:</b> console.twilio.com → Account Info → SID + Auth token,
+      and buy a number. Malaysia ~RM0.04–0.10 per message.</li>
+  <li><b>RedSMS:</b> redsms.com (Malaysian gateway) — verify the API format
+      against the docs you receive with your account.</li>
+  <li><b>WhatsApp (Meta Cloud):</b> developers.facebook.com → create app →
+      WhatsApp product → get Access Token + Phone Number ID. Requires Meta
+      Business verification for production. Reply-only by design: free-form
+      messages only work within 24h of the user messaging you.</li>
+  <li><b>X (Twitter):</b> developer.x.com → developer portal → API keys.
+      Pay-per-use. Publish/monitor only — no cold DMs on any affordable tier.</li>
+</ul>
+{% endblock %}

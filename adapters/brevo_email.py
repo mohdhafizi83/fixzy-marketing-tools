@@ -6,7 +6,7 @@ Official docs (help.brevo.com and developers.brevo.com/docs/smtp-integration):
 """
 import asyncio
 import aiosmtplib
-import config
+from credentials import cred
 from adapters import BaseAdapter, SendResult
 
 
@@ -15,7 +15,8 @@ class BrevoEmailAdapter(BaseAdapter):
     supports_outbound = True
 
     def is_configured(self) -> bool:
-        return bool(config.BREVO_SMTP_USER and config.BREVO_SMTP_KEY and config.MAIL_FROM)
+        return bool(cred("brevo_smtp_user") and cred("brevo_smtp_key")
+                   and cred("mail_from"))
 
     def send(self, lead, message: str, subject: str | None = None) -> SendResult:
         if not lead.email:
@@ -23,7 +24,7 @@ class BrevoEmailAdapter(BaseAdapter):
         msg = self._build(lead, message, subject)
         try:
             asyncio.run(self._send_async(msg))
-            return SendResult(True, f"delivered via {config.BREVO_SMTP_HOST}")
+            return SendResult(True, "delivered via Brevo SMTP relay")
         except aiosmtplib.SMTPException as e:
             return SendResult(False, f"SMTP error: {e}")
         except OSError as e:
@@ -32,7 +33,7 @@ class BrevoEmailAdapter(BaseAdapter):
     def _build(self, lead, message: str, subject: str | None):
         from email.message import EmailMessage
         m = EmailMessage()
-        m["From"] = config.MAIL_FROM
+        m["From"] = cred("mail_from")
         m["To"] = lead.email
         m["Subject"] = subject or "Message from Fixzy Marketing Tools"
         # An unsubscribe link is mandatory in every outbound message (PDPA)
@@ -45,10 +46,10 @@ class BrevoEmailAdapter(BaseAdapter):
     async def _send_async(self, msg):
         await aiosmtplib.send(
             msg,
-            hostname=config.BREVO_SMTP_HOST,
-            port=config.BREVO_SMTP_PORT,
-            username=config.BREVO_SMTP_USER,
-            password=config.BREVO_SMTP_KEY,
+            hostname="smtp-relay.brevo.com",
+            port=587,
+            username=cred("brevo_smtp_user"),
+            password=cred("brevo_smtp_key"),
             start_tls=True,
             timeout=30,
         )

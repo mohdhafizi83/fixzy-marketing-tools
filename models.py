@@ -107,7 +107,8 @@ class Setting(db.Model):
     """Simple key-value app settings editable from the Settings UI.
 
     DB values override .env values (env acts as the default). Used for
-    Search API credentials so the owner can manage them without editing files.
+    Search API and all channel credentials so users can manage everything
+    from the web UI without touching files.
     """
     __tablename__ = "settings"
     key = db.Column(db.String(64), primary_key=True)

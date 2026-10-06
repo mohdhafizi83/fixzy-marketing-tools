@@ -1,0 +1,81 @@
+"""Credential resolution: Settings UI (DB) first, .env as fallback.
+
+Every adapter reads credentials through cred() so users can configure the
+whole tool from the web UI. The .env file remains a valid default path for
+advanced deployments (Docker, config management), but is never required.
+
+DB keys are lowercase snake_case, mirroring the env variable names.
+"""
+import config
+
+# Maps DB key -> env-backed default from config.py
+_ENV_DEFAULTS = {
+    # Email (Brevo SMTP relay)
+    "brevo_smtp_user": lambda: config.BREVO_SMTP_USER,
+    "brevo_smtp_key": lambda: config.BREVO_SMTP_KEY,
+    "mail_from": lambda: config.MAIL_FROM,
+    # Telegram
+    "telegram_bot_token": lambda: config.TELEGRAM_BOT_TOKEN,
+    # Twilio SMS
+    "twilio_account_sid": lambda: config.TWILIO_ACCOUNT_SID,
+    "twilio_auth_token": lambda: config.TWILIO_AUTH_TOKEN,
+    "twilio_from_number": lambda: config.TWILIO_FROM_NUMBER,
+    # RedSMS
+    "redsms_username": lambda: config.REDSMS_USERNAME,
+    "redsms_password": lambda: config.REDSMS_PASSWORD,
+    "redsms_sender_id": lambda: config.REDSMS_SENDER_ID,
+    # WhatsApp Cloud
+    "whatsapp_access_token": lambda: config.WHATSAPP_ACCESS_TOKEN,
+    "whatsapp_phone_number_id": lambda: config.WHATSAPP_PHONE_NUMBER_ID,
+    "whatsapp_app_secret": lambda: config.WHATSAPP_APP_SECRET,
+    # X (Twitter)
+    "x_bearer_token": lambda: config.X_BEARER_TOKEN,
+    "x_api_key": lambda: config.X_API_KEY,
+    "x_api_secret": lambda: config.X_API_SECRET,
+    # Search API
+    "serpapi_key": lambda: config.SERPAPI_KEY,
+    "searxng_url": lambda: config.SEARXNG_URL,
+}
+
+
+def cred(key: str) -> str:
+    """Resolve a credential: DB Setting first, then .env default."""
+    from models import Setting
+    db_val = Setting.get(key)
+    if db_val:
+        return db_val
+    getter = _ENV_DEFAULTS.get(key)
+    return getter() if getter else ""
+
+
+# Field definitions for the Settings UI: (db_key, label, is_secret)
+CHANNEL_FIELDS = {
+    "email (Brevo)": [
+        ("brevo_smtp_user", "SMTP user (login email)", False),
+        ("brevo_smtp_key", "SMTP key", True),
+        ("mail_from", "From address (e.g. Name <you@domain.com>)", False),
+    ],
+    "telegram": [
+        ("telegram_bot_token", "Bot token (from @BotFather)", True),
+    ],
+    "sms (Twilio)": [
+        ("twilio_account_sid", "Account SID (AC...)", False),
+        ("twilio_auth_token", "Auth token", True),
+        ("twilio_from_number", "From number (e.g. +1555...)", False),
+    ],
+    "sms (RedSMS)": [
+        ("redsms_username", "Username", False),
+        ("redsms_password", "Password", True),
+        ("redsms_sender_id", "Sender ID", False),
+    ],
+    "whatsapp (Meta Cloud)": [
+        ("whatsapp_access_token", "Access token", True),
+        ("whatsapp_phone_number_id", "Phone number ID", False),
+        ("whatsapp_app_secret", "App secret (webhook verify)", True),
+    ],
+    "x (Twitter)": [
+        ("x_bearer_token", "Bearer token (read/monitor)", True),
+        ("x_api_key", "API key (OAuth1 publish)", False),
+        ("x_api_secret", "API secret (OAuth1 publish)", True),
+    ],
+}

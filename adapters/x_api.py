@@ -8,7 +8,7 @@ Verified vs docs.x.com (Oct 2026):
 DMing strangers is NOT available on any affordable X tier — do not add it.
 """
 import requests
-import config
+from credentials import cred
 from adapters import BaseAdapter, SendResult
 
 
@@ -19,10 +19,10 @@ class XAdapter(BaseAdapter):
     publish = True
 
     def is_configured(self) -> bool:
-        return bool(config.X_BEARER_TOKEN)
+        return bool(cred("x_bearer_token"))
 
     def can_publish(self) -> bool:
-        return bool(config.X_API_KEY and config.X_API_SECRET)
+        return bool(cred("x_api_key") and cred("x_api_secret"))
 
     def send(self, lead, message: str, subject: str | None = None) -> SendResult:
         return SendResult(False,
@@ -35,7 +35,7 @@ class XAdapter(BaseAdapter):
         # OAuth1 signing via requests-oauthlib if installed; else manual note
         try:
             from requests_oauthlib import OAuth1
-            auth = OAuth1(config.X_API_KEY, config.X_API_SECRET)
+            auth = OAuth1(cred("x_api_key"), cred("x_api_secret"))
             r = requests.post("https://api.x.com/2/tweets",
                              json={"text": text}, auth=auth, timeout=20)
             data = r.json()
@@ -51,12 +51,12 @@ class XAdapter(BaseAdapter):
     def search_recent(self, query: str, max_results: int = 20) -> tuple[list[dict], str]:
         """Recent public posts matching a query — for lead/brand monitoring."""
         if not self.is_configured():
-            return [], "X_BEARER_TOKEN not set"
+            return [], "X bearer token not set (Settings -> Channels)"
         try:
             r = requests.get(
                 "https://api.x.com/2/tweets/search/recent",
                 params={"query": query, "max_results": max(10, min(100, max_results))},
-                headers={"Authorization": f"Bearer {config.X_BEARER_TOKEN}"},
+                headers={"Authorization": f"Bearer {cred('x_bearer_token')}"},
                 timeout=20,
             )
             data = r.json()

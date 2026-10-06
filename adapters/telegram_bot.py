@@ -7,7 +7,7 @@ chat_id is registered when the user sends /start to the bot, which our
 telegram_chat_id plus an active consent record.
 """
 import requests
-import config
+from credentials import cred
 from adapters import BaseAdapter, SendResult
 
 
@@ -16,17 +16,17 @@ class TelegramAdapter(BaseAdapter):
     supports_outbound = True
 
     def is_configured(self) -> bool:
-        return bool(config.TELEGRAM_BOT_TOKEN)
+        return bool(cred("telegram_bot_token"))
 
     def send(self, lead, message: str, subject: str | None = None) -> SendResult:
         chat_id = getattr(lead, "telegram_chat_id", None)
         if not chat_id:
             return SendResult(False, "lead has no telegram_chat_id (user has not sent /start to the bot)")
         if not self.is_configured():
-            return SendResult(False, "TELEGRAM_BOT_TOKEN is not set")
+            return SendResult(False, "Telegram bot token not set (Settings -> Channels)")
         try:
             r = requests.post(
-                f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage",
+                f"https://api.telegram.org/bot{cred('telegram_bot_token')}/sendMessage",
                 json={"chat_id": chat_id, "text": message},
                 timeout=15,
             )

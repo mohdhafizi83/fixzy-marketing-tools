@@ -10,7 +10,7 @@ The response codes below assume: positive number = credits remaining,
 Cost: ~RM0.04-0.09/message on prepaid credit.
 """
 import requests
-import config
+from credentials import cred
 from adapters import BaseAdapter, SendResult
 
 
@@ -19,24 +19,24 @@ class RedSmsAdapter(BaseAdapter):
     supports_outbound = True
 
     def is_configured(self) -> bool:
-        return bool(config.REDSMS_USERNAME and config.REDSMS_PASSWORD)
+        return bool(cred("redsms_username") and cred("redsms_password"))
 
     def send(self, lead, message: str, subject: str | None = None) -> SendResult:
         if not lead.phone:
             return SendResult(False, "lead has no phone number")
         if not self.is_configured():
-            return SendResult(False, "RedSMS credentials not set")
+            return SendResult(False, "RedSMS credentials not set (Settings -> Channels)")
         unsub = lead.unsubscribe_url("sms")
         body = f"{message}\nReply STOP to unsubscribe: {unsub}"
         try:
             r = requests.get(
                 "https://www.redsms.com/api/sendsms.php",
                 params={
-                    "username": config.REDSMS_USERNAME,
-                    "password": config.REDSMS_PASSWORD,
+                    "username": cred("redsms_username"),
+                    "password": cred("redsms_password"),
                     "mobile": f"+{lead.phone}",
                     "message": body,
-                    "sender": config.REDSMS_SENDER_ID or "Fixzy",
+                    "sender": cred("redsms_sender_id") or "Fixzy",
                 },
                 timeout=20,
             )

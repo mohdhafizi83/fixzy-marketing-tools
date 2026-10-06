@@ -9,7 +9,7 @@ Message length: Twilio bills per 160-char segment (GSM-7). We do not
 auto-trim; long messages simply cost more segments.
 """
 import requests
-import config
+from credentials import cred
 from adapters import BaseAdapter, SendResult
 
 
@@ -18,23 +18,23 @@ class TwilioSmsAdapter(BaseAdapter):
     supports_outbound = True
 
     def is_configured(self) -> bool:
-        return bool(config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN
-                   and config.TWILIO_FROM_NUMBER)
+        return bool(cred("twilio_account_sid") and cred("twilio_auth_token")
+                   and cred("twilio_from_number"))
 
     def send(self, lead, message: str, subject: str | None = None) -> SendResult:
         if not lead.phone:
             return SendResult(False, "lead has no phone number")
         if not self.is_configured():
-            return SendResult(False, "Twilio credentials not set")
+            return SendResult(False, "Twilio credentials not set (Settings -> Channels)")
         # Unsubscribe footer is mandatory on every outbound (PDPA)
         unsub = lead.unsubscribe_url("sms")
         body = f"{message}\nReply STOP to unsubscribe: {unsub}"
         try:
             r = requests.post(
                 f"https://api.twilio.com/2010-04-01/Accounts/"
-                f"{config.TWILIO_ACCOUNT_SID}/Messages.json",
-                auth=(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN),
-                data={"To": f"+{lead.phone}", "From": config.TWILIO_FROM_NUMBER,
+                f"{cred('twilio_account_sid')}/Messages.json",
+                auth=(cred("twilio_account_sid"), cred("twilio_auth_token")),
+                data={"To": f"+{lead.phone}", "From": cred("twilio_from_number"),
                      "Body": body},
                 timeout=20,
             )

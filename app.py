@@ -337,6 +337,40 @@ def settings_search():
     return redirect(url_for("settings_llm"))
 
 
+@app.route("/settings/channels", methods=["GET", "POST"])
+def settings_channels():
+    """Manage all channel credentials from the UI (DB overrides .env).
+
+    Every adapter reads through credentials.cred(), so saving a value here
+    takes effect immediately — no restart, no file editing required.
+    """
+    from models import Setting
+    from credentials import CHANNEL_FIELDS, cred
+    if request.method == "POST":
+        saved = 0
+        for group, fields in CHANNEL_FIELDS.items():
+            for key, label, _secret in fields:
+                fname = f"cred_{key}"
+                if fname in request.form:
+                    Setting.set(key, request.form.get(fname, "").strip())
+                    saved += 1
+        flash(f"Saved {saved} channel credential(s).")
+        return redirect(url_for("settings_channels"))
+
+    # Current values + configured status per channel
+    from adapters import get_adapter
+    groups = []
+    for group, fields in CHANNEL_FIELDS.items():
+        rows = [(key, label, secret, cred(key)) for key, label, secret in fields]
+        ch = group.split(" ")[0].lower()
+        try:
+            configured = get_adapter(ch).is_configured()
+        except Exception:
+            configured = False
+        groups.append({"group": group, "rows": rows, "configured": configured})
+    return render_template("settings_channels.html", groups=groups)
+
+
 @app.route("/settings/llm/models", methods=["POST"])
 def settings_llm_models():
     """Return a provider's model list as JSON (for the campaign form dropdown)."""
