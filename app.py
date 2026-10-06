@@ -186,16 +186,79 @@ def export_leads():
 
 @app.route("/campaign/draft", methods=["POST"])
 def campaign_draft():
-    """AI copy draft endpoint (local LLM, RM0). Returns JSON for the UI."""
+    """AI copy draft endpoint. Optional provider_id + model in the JSON body."""
     from aicopy import draft_message
-    brief = (request.json or {}).get("brief", "").strip()
-    channel = (request.json or {}).get("channel", "email")
-    if not brief:
-        return jsonify({"ok": False, "error": "Brief is required"}), 400
-    draft, err = draft_message(brief, channel)
+    from models import LlmProvider
+    body = request.json or {}
+    brief = body.get("brief", "").strip()
+    channel = body.get("channel", "email")
+    provider = None
+    if body.get("provider_id"):
+        provider = db.session.get(LlmProvider, body["provider_id"])
+        if not provider:
+            return jsonify({"ok": False, "error": "Provider not found"}), 404
+    draft, err = draft_message(brief, channel, provider=provider,
+                              model=body.get("model") or None)
     if draft is None:
         return jsonify({"ok": False, "error": err}), 502
     return jsonify({"ok": True, "draft": draft})
+
+
+@app.route("/settings/llm", methods=["GET", "POST"])
+def settings_llm():
+    """Manage LLM providers (local or cloud, OpenAI-compatible)."""
+    from models import LlmProvider
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "add":
+            name = request.form.get("name", "").strip()
+            base_url = request.form.get("base_url", "").strip()
+            if not name or not base_url:
+                flash("Name and base URL are required.")
+                return redirect(url_for("settings_llm"))
+            p = LlmProvider(name=name, base_url=base_url,
+                           api_key=request.form.get("api_key", "").strip(),
+                           default_model=request.form.get("default_model", "").strip(),
+                           is_default=not LlmProvider.query.first())
+            db.session.add(p)
+            db.session.commit()
+            flash(f"Provider '{name}' added.")
+        elif action == "set_default":
+            pid = int(request.form.get("id", 0))
+            for p in LlmProvider.query.all():
+                p.is_default = (p.id == pid)
+            db.session.commit()
+            flash("Default provider updated.")
+        elif action == "delete":
+            pid = int(request.form.get("id", 0))
+            p = db.session.get(LlmProvider, pid)
+            if p:
+                db.session.delete(p)
+                db.session.commit()
+                flash(f"Provider '{p.name}' deleted.")
+        return redirect(url_for("settings_llm"))
+
+    providers = LlmProvider.query.order_by(LlmProvider.id).all()
+    # Try to list each provider's models for display
+    from aicopy import list_models
+    info = []
+    for p in providers:
+        models, err = list_models(p)
+        info.append({"p": p, "models": models, "err": err})
+    return render_template("settings_llm.html", info=info)
+
+
+@app.route("/settings/llm/models", methods=["POST"])
+def settings_llm_models():
+    """Return a provider's model list as JSON (for the campaign form dropdown)."""
+    from models import LlmProvider
+    from aicopy import list_models
+    pid = int((request.json or {}).get("provider_id", 0))
+    p = db.session.get(LlmProvider, pid)
+    if not p:
+        return jsonify({"ok": False, "error": "Provider not found"}), 404
+    models, err = list_models(p)
+    return jsonify({"ok": bool(models), "models": models, "error": err})
 
 
 @app.route("/campaign/new", methods=["GET", "POST"])
@@ -208,7 +271,8 @@ def campaign_new():
         db.session.commit()
         flash(f"Campaign '{c.name}' created (id {c.id}).")
         return redirect(url_for("dashboard"))
-    return render_template("campaign_new.html")
+    from models import LlmProvider
+    return render_template("campaign_new.html", providers=LlmProvider.query.order_by(LlmProvider.id).all())
 
 
 @app.route("/campaign/<int:cid>/start", methods=["POST"])

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Settings — LLM Providers</h2>
+<p style="color:#666">Any OpenAI-compatible endpoint works. Local (llama.cpp / Ollama /
+llama-swap) needs no API key. Cloud (OpenAI / OpenRouter / Groq) needs one.
+The default provider is used when a campaign does not pick one.</p>
+
+<h3>Add a provider</h3>
+<form method="post">
+  <input type="hidden" name="action" value="add">
+  <p>Name: <input type="text" name="name" placeholder="Local (localhost)" required style="max-width:320px"></p>
+  <p>Base URL: <input type="text" name="base_url" placeholder="http://localhost:8080  (or https://api.openai.com/v1)" required style="max-width:480px"></p>
+  <p>API key (optional, for cloud): <input type="text" name="api_key" placeholder="sk-..." style="max-width:480px"></p>
+  <p>Default model (optional): <input type="text" name="default_model" placeholder="llama3" style="max-width:320px"></p>
+  <p><button>Add provider</button></p>
+</form>
+
+<h3>Configured providers</h3>
+<table>
+  <tr><th>Name</th><th>Base URL</th><th>Key</th><th>Default model</th><th>Status</th><th>Actions</th></tr>
+  {% for row in info %}
+  <tr>
+    <td>{{ row.p.name }} {% if row.p.is_default %}<b>(default)</b>{% endif %}</td>
+    <td>{{ row.p.base_url }}</td>
+    <td>{{ 'yes' if row.p.api_key else '—' }}</td>
+    <td>{{ row.p.default_model or 'auto' }}</td>
+    <td class="{{ 'ok' if row.models else 'bad' }}">
+      {% if row.models %}{{ row.models|length }} models: {{ row.models[:4]|join(', ') }}{% if row.models|length > 4 %}…{% endif %}
+      {% else %}{{ row.err }}{% endif %}
+    </td>
+    <td>
+      {% if not row.p.is_default %}
+      <form method="post" style="display:inline"><input type="hidden" name="action" value="set_default">
+        <input type="hidden" name="id" value="{{ row.p.id }}">
+        <button>Set default</button></form>
+      {% endif %}
+      <form method="post" style="display:inline" onsubmit="return confirm('Delete this provider?')">
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="id" value="{{ row.p.id }}">
+        <button style="background:#b00020">Delete</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

@@ -83,3 +83,21 @@ class Event(db.Model):
     status = db.Column(db.String(32))                       # sent / failed / skipped
     detail = db.Column(db.Text)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+
+class LlmProvider(db.Model):
+    """A configurable LLM backend for AI copy drafts (local or cloud).
+
+    Any OpenAI-compatible chat-completions endpoint works: llama.cpp server,
+    Ollama, llama-swap (local), or OpenAI / OpenRouter / Groq (cloud).
+    base_url is stored WITHOUT the /v1 suffix; the client normalizes it.
+    NOTE: api_key lives in the local SQLite DB — treat the DB file as a secret.
+    """
+    __tablename__ = "llm_providers"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), unique=True, nullable=False)   # "Local (localhost)"
+    base_url = db.Column(db.String(255), nullable=False)           # http://host:port
+    api_key = db.Column(db.String(255), default="")               # empty for local
+    default_model = db.Column(db.String(128), default="")
+    is_default = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())

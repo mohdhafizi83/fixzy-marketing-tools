@@ -20,18 +20,56 @@
      <option value="email">email</option>
      <option value="telegram">telegram</option>
    </select></p>
+<p>LLM provider:
+   <select id="ai-provider" style="width:260px">
+     <option value="">Default (auto)</option>
+     {% for p in providers %}
+     <option value="{{ p.id }}">{{ p.name }}{% if p.is_default %} (default){% endif %}</option>
+     {% endfor %}
+   </select>
+   Model: <select id="ai-model" style="width:260px"><option value="">Auto-pick</option></select>
+</p>
 <div id="ai-status" style="color:#666"></div>
 <script>
+// Load models when provider changes
+document.getElementById('ai-provider').addEventListener('change', async () => {
+  const pid = document.getElementById('ai-provider').value;
+  const sel = document.getElementById('ai-model');
+  sel.innerHTML = '<option value="">Auto-pick</option>';
+  if (!pid) return;
+  const r = await fetch('{{ url_for("settings_llm_models") }}', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({provider_id: parseInt(pid)})
+  });
+  const d = await r.json();
+  if (d.ok) {
+    for (const m of d.models) {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      sel.appendChild(opt);
+    }
+  } else {
+    const opt = document.createElement('option');
+    opt.value = ''; opt.textContent = '(cannot load: ' + d.error + ')';
+    sel.appendChild(opt);
+  }
+});
+
 document.getElementById('ai-draft').addEventListener('click', async () => {
   const brief = document.getElementById('ai-brief').value.trim();
   const status = document.getElementById('ai-status');
   if (!brief) { status.textContent = 'Type a brief first.'; return; }
-  status.textContent = 'Drafting with local LLM... (cold model may take ~1 minute)';
+  status.textContent = 'Drafting with LLM... (cold local model may take ~1 minute)';
   try {
+    const pid = document.getElementById('ai-provider').value;
+    const body = {brief: brief, channel: document.getElementById('ai-channel').value};
+    if (pid) body.provider_id = parseInt(pid);
+    const model = document.getElementById('ai-model').value;
+    if (model) body.model = model;
     const r = await fetch('{{ url_for("campaign_draft") }}', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({brief: brief, channel: document.getElementById('ai-channel').value})
+      body: JSON.stringify(body)
     });
     const d = await r.json();
     if (d.ok) {
