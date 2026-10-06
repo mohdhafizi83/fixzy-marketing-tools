@@ -32,6 +32,8 @@ _ENV_DEFAULTS = {
     "x_bearer_token": lambda: config.X_BEARER_TOKEN,
     "x_api_key": lambda: config.X_API_KEY,
     "x_api_secret": lambda: config.X_API_SECRET,
+    "x_access_token": lambda: config.X_ACCESS_TOKEN,
+    "x_access_secret": lambda: config.X_ACCESS_SECRET,
     # Meta messaging (Messenger + Instagram Direct share one webhook)
     "messenger_verify_token": lambda: config.MESSENGER_VERIFY_TOKEN,
     "messenger_page_token": lambda: config.MESSENGER_PAGE_TOKEN,
@@ -89,7 +91,9 @@ CHANNEL_FIELDS = {
     ],
     "x (Twitter)": [
         ("x_bearer_token", "Bearer token (read/monitor)", True),
-        ("x_api_key", "API key (OAuth1 publish)", False),
-        ("x_api_secret", "API secret (OAuth1 publish)", True),
+        ("x_api_key", "API key (consumer key, OAuth1 publish)", False),
+        ("x_api_secret", "API secret (consumer secret, OAuth1 publish)", True),
+        ("x_access_token", "Access token (user context, OAuth1 publish)", False),
+        ("x_access_secret", "Access token secret (OAuth1 publish)", True),
     ],
 }

@@ -10,9 +10,19 @@ Publishing requires OAuth1 credentials and is not wired to campaigns by design.<
 {% if err %}<p class="bad">{{ err }}</p>{% endif %}
 {% if posts %}
 <table>
-  <tr><th>Post ID</th><th>Text</th></tr>
+  <tr><th>Post ID</th><th>Text</th><th>Action</th></tr>
   {% for p in posts %}
-  <tr><td>{{ p.id }}</td><td style="max-width:640px">{{ p.text }}</td></tr>
+  <tr>
+    <td>{{ p.id }}</td>
+    <td style="max-width:560px">{{ p.text }}</td>
+    <td>
+      <form method="post" action="{{ url_for('monitor_x_reply') }}" style="display:flex;gap:6px">
+        <input type="hidden" name="tweet_id" value="{{ p.id }}">
+        <input type="text" name="text" placeholder="Reply…" style="min-width:220px" required>
+        <button type="submit">Reply</button>
+      </form>
+    </td>
+  </tr>
   {% endfor %}
 </table>
 {% endif %}

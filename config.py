@@ -45,8 +45,10 @@ WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "")   # webhook verificat
 # --- F3: X (Twitter) API v2 ----------------------------------------------
 # Verified vs docs.x.com (Oct 2026): pay-per-use, POST /2/tweets to publish.
 X_BEARER_TOKEN = os.getenv("X_BEARER_TOKEN", "")        # read (monitoring)
-X_API_KEY = os.getenv("X_API_KEY", "")                  # write (OAuth1)
-X_API_SECRET = os.getenv("X_API_SECRET", "")
+X_API_KEY = os.getenv("X_API_KEY", "")                  # consumer key (OAuth1)
+X_API_SECRET = os.getenv("X_API_SECRET", "")            # consumer secret
+X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")        # user access token
+X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")      # user access secret
 
 # Meta messaging: Messenger (FB Page) + Instagram Direct share one webhook
 MESSENGER_VERIFY_TOKEN = os.getenv("MESSENGER_VERIFY_TOKEN", "")

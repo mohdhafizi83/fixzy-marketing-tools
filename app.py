@@ -667,6 +667,21 @@ def monitor_x():
     return render_template("monitor_x.html", query=query, posts=posts, err=err)
 
 
+@app.route("/monitor/x/reply", methods=["POST"])
+def monitor_x_reply():
+    """Reply to a monitored X post (comment on our own post, support, etc.)."""
+    tweet_id = request.form.get("tweet_id", "").strip()
+    text = request.form.get("text", "").strip()
+    if not tweet_id or not text:
+        flash("Both post ID and reply text are required.")
+    else:
+        from adapters.x_api import XAdapter
+        result = XAdapter().reply_to_post(tweet_id, text)
+        flash(f"Reply sent to {tweet_id}." if result.ok
+              else f"Reply failed: {result.detail}")
+    return redirect(url_for("monitor_x", q=request.args.get("q", "")))
+
+
 @app.route("/unsubscribe/<token>", methods=["GET", "POST"])
 def unsubscribe(token):
     lead = Lead.query.filter_by(unsub_token=token).first()
