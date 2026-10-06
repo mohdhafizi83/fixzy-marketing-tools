@@ -5,6 +5,9 @@
 <div class="cards">
   <div class="card"><b>{{ summary.total_attempts }}</b> Send attempts</div>
   <div class="card"><b class="ok">{{ summary.sent }}</b> Sent</div>
+  <div class="card"><b class="ok">{{ summary.delivered }}</b> Delivered</div>
+  <div class="card"><b class="ok">{{ summary.opened }}</b> Opened</div>
+  <div class="card"><b class="bad">{{ summary.bounced }}</b> Bounced</div>
   <div class="card"><b class="bad">{{ summary.failed }}</b> Failed</div>
   <div class="card"><b>{{ '%.1f'|format(summary.success_rate) }}%</b> Success rate</div>
   <div class="card"><b>{{ summary.leads }}</b> Leads</div>
@@ -13,15 +16,16 @@
 
 <h3>Per channel (last 30 days)</h3>
 <table>
-  <tr><th>Channel</th><th>Sent</th><th>Failed</th><th>Success rate</th></tr>
+  <tr><th>Channel</th><th>Sent</th><th>Delivered</th><th>Opened</th><th>Bounced</th><th>Failed</th><th>Success rate</th></tr>
   {% for ch, st in per_channel.items() %}
   {% set tot = st.sent + st.failed %}
   <tr>
-    <td>{{ ch }}</td><td>{{ st.sent }}</td><td>{{ st.failed }}</td>
+    <td>{{ ch }}</td><td>{{ st.sent }}</td><td>{{ st.delivered }}</td>
+    <td>{{ st.opened }}</td><td>{{ st.bounced }}</td><td>{{ st.failed }}</td>
     <td>{{ '%.1f'|format(st.sent / tot * 100) if tot else '—' }}%</td>
   </tr>
   {% else %}
-  <tr><td colspan="4" style="color:#666">No sends in the last 30 days yet.</td></tr>
+  <tr><td colspan="7" style="color:#666">No sends in the last 30 days yet.</td></tr>
   {% endfor %}
 </table>
 

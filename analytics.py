@@ -24,6 +24,9 @@ def summary():
         "total_attempts": total,
         "sent": sent,
         "failed": failed,
+        "delivered": by_status.get("delivered", 0),
+        "opened": by_status.get("opened", 0),
+        "bounced": by_status.get("bounced", 0),
         "success_rate": (sent / total * 100) if total else 0.0,
         "leads": Lead.query.count(),
         "suppressed": Suppression.query.count(),
@@ -39,9 +42,10 @@ def per_channel(days: int = 30):
         .group_by(Event.channel, Event.status)
         .all()
     )
-    out = defaultdict(lambda: {"sent": 0, "failed": 0})
+    out = defaultdict(lambda: {"sent": 0, "failed": 0, "delivered": 0,
+                              "opened": 0, "bounced": 0})
     for channel, status, n in rows:
-        if status in ("sent", "failed"):
+        if status in ("sent", "failed", "delivered", "opened", "bounced"):
             out[channel][status] = n
     return dict(out)
 

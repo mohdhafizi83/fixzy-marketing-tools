@@ -39,6 +39,8 @@ _ENV_DEFAULTS = {
     # Search API
     "serpapi_key": lambda: config.SERPAPI_KEY,
     "searxng_url": lambda: config.SEARXNG_URL,
+    # Brevo event webhook (delivered/open/bounce callbacks)
+    "brevo_webhook_secret": lambda: config.BREVO_WEBHOOK_SECRET,
 }
 
 
@@ -58,6 +60,7 @@ CHANNEL_FIELDS = {
         ("brevo_smtp_user", "SMTP user (login email)", False),
         ("brevo_smtp_key", "SMTP key", True),
         ("mail_from", "From address (e.g. Name <you@domain.com>)", False),
+        ("brevo_webhook_secret", "Webhook secret (for delivery/bounce tracking)", True),
     ],
     "telegram": [
         ("telegram_bot_token", "Bot token (from @BotFather)", True),

@@ -531,6 +531,84 @@ def meta_messaging_webhook():
     return jsonify({"ok": True, "channel": channel, "saved": saved})
 
 
+@app.route("/webhooks/brevo", methods=["POST"])
+def brevo_webhook():
+    """Brevo transactional event webhook: delivery, opens, bounces, spam.
+
+    Payload shape (verified vs developers.brevo.com/docs/transactional-webhooks,
+    Oct 2026): {"event": "delivered|opened|unique_opened|click|soft_bounce|
+    hard_bounce|spam|unsubscribed|blocked|error|request", "email": "...", ...}
+
+    Security: shared secret via ?key=<BREVO_WEBHOOK_SECRET>; fail closed when
+    unset. Brevo also documents IP whitelisting as a second layer (help.brevo.com).
+
+    PDPA wiring:
+      hard_bounce / spam / blocked  -> Suppression (never contact again)
+      unsubscribed                  -> Suppression + revoke Consent
+    Analytics wiring:
+      delivered / unique_opened     -> Event rows (opened/delivered statuses)
+    """
+    from credentials import cred
+    secret = cred("brevo_webhook_secret")
+    if not secret or request.args.get("key") != secret:
+        return "invalid or missing webhook key", 403
+
+    data = request.get_json(silent=True) or {}
+    event = data.get("event", "")
+    email = (data.get("email") or "").lower()
+    if not event or not email:
+        return jsonify({"ok": False, "error": "missing event/email"}), 400
+
+    handled = []
+
+    with app.app_context():
+        lead = Lead.query.filter_by(email=email).first()
+        lead_id = lead.id if lead else None
+
+        def add_event(status, detail):
+            db.session.add(Event(lead_id=lead_id, channel="email",
+                                status=status, detail=detail))
+
+        def suppress(reason):
+            if not Suppression.is_suppressed("email", email):
+                db.session.add(Suppression(channel="email", value=email,
+                                         reason=reason))
+                handled.append(f"suppressed ({reason})")
+
+        if event in ("hard_bounce", "blocked"):
+            suppress("bounced")
+            add_event("bounced", data.get("reason", event))
+        elif event == "spam":
+            suppress("complained")
+            add_event("complained", "marked as spam by recipient")
+        elif event == "unsubscribed":
+            suppress("unsubscribed")
+            if lead:
+                c = (Consent.query.filter_by(lead_id=lead.id, channel="email")
+                     .order_by(Consent.id.desc()).first())
+                if c and not c.revoked_at:
+                    c.revoked_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            add_event("unsubscribed", "via Brevo unsubscribe")
+        elif event == "delivered":
+            add_event("delivered", "confirmed by Brevo")
+            handled.append("delivered")
+        elif event == "unique_opened":
+            add_event("opened", "first open (unique)")
+            handled.append("opened")
+        elif event in ("opened", "click"):
+            add_event(event, "repeat engagement")
+            handled.append(event)
+        elif event in ("request", "soft_bounce", "deferred", "error"):
+            # Informational only: soft bounces may still deliver later
+            add_event(event, data.get("reason", ""))
+            handled.append(event)
+        else:
+            return jsonify({"ok": False, "error": f"unknown event '{event}'"}), 400
+        db.session.commit()
+    return jsonify({"ok": True, "event": event,
+                   "result": ", ".join(handled) or "recorded"})
+
+
 @app.route("/inbox")
 def inbox():
     """F3 reply inbox — WhatsApp (and future) inbound messages."""
