@@ -1,8 +1,8 @@
 """Email adapter — Brevo SMTP relay.
 
-Docs rasmi (help.brevo.com + developers.brevo.com/docs/smtp-integration):
+Official docs (help.brevo.com and developers.brevo.com/docs/smtp-integration):
   host: smtp-relay.brevo.com, port 587 (STARTTLS), user = SMTP login email,
-  password = SMTP key. Free tier: 300 mesej/hari.
+  password = SMTP key. Free tier: 300 messages/day.
 """
 import asyncio
 import aiosmtplib
@@ -19,7 +19,7 @@ class BrevoEmailAdapter(BaseAdapter):
 
     def send(self, lead, message: str, subject: str | None = None) -> SendResult:
         if not lead.email:
-            return SendResult(False, "lead tiada email")
+            return SendResult(False, "lead has no email address")
         msg = self._build(lead, message, subject)
         try:
             asyncio.run(self._send_async(msg))
@@ -34,11 +34,11 @@ class BrevoEmailAdapter(BaseAdapter):
         m = EmailMessage()
         m["From"] = config.MAIL_FROM
         m["To"] = lead.email
-        m["Subject"] = subject or "Mesej dari Fixzy Marketing Tools"
-        # Unsubscribe link wajib dalam setiap outbound (PDPA)
+        m["Subject"] = subject or "Message from Fixzy Marketing Tools"
+        # An unsubscribe link is mandatory in every outbound message (PDPA)
         unsub = lead.unsubscribe_url("email")
         m["List-Unsubscribe"] = f"<{unsub}>"
-        body = message + f"\n\n---\nTak mahu mesej sebegini lagi? Berhenti melanggan: {unsub}\n"
+        body = message + f"\n\n---\nDon't want these messages anymore? Unsubscribe: {unsub}\n"
         m.set_content(body)
         return m
 

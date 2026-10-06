@@ -1,7 +1,7 @@
-"""Crawler — ganti HtmlAgilityPack legacy. requests + selectolax.
+"""Crawler — replaces the legacy HtmlAgilityPack. requests + selectolax.
 
-Sumber F1: fail text, senarai URL, text paste, crawl seluruh site (ikut <a href>).
-Sopan: delay antara request, hormat robots.txt ringkas, had kedalaman + jumlah page.
+F1 sources: text files, URL lists, pasted text, full-site crawl (follows <a href>).
+Polite crawling: delay between requests, respects robots.txt, depth and page caps.
 """
 import time
 import urllib.robotparser
@@ -36,14 +36,14 @@ class Crawler:
                 rp.set_url(f"{urlparse(url).scheme}://{host}/robots.txt")
                 rp.read()
             except Exception:
-                rp = None  # robots tak dapat dibaca → anggap dibenar (sama seperti legacy)
+                rp = None  # robots.txt unreadable -> assume allowed (same as legacy)
             self._robots[host] = rp
         if rp is None:
             return True
         return rp.can_fetch(UA, url)
 
     def fetch(self, url: str) -> str:
-        """Ambil HTML satu URL. Return '' jika gagal/disekat."""
+        """Fetch the HTML for one URL. Returns '' on failure or block."""
         if not self._allowed(url):
             return ""
         try:
@@ -56,10 +56,10 @@ class Crawler:
 
     def crawl_site(self, start_url: str,
                   on_page=None) -> tuple[list[str], list[str]]:
-        """BFS ikut <a href> dalam domain yang sama.
+        """Breadth-first crawl over <a href> links within the same domain.
 
-        on_page(url, n_emails, n_phones) dipanggil setiap page — untuk progress UI.
-        Return (emails, phones) unik merentasi semua page.
+        on_page(url, n_emails, n_phones) is called per page — for progress UI.
+        Returns (emails, phones), unique across all pages.
         """
         from extractor import extract_emails, extract_phones_my
 

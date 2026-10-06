@@ -1,8 +1,9 @@
-"""Adapter interface — satu kontrak untuk semua channel (brief §5).
+"""Adapter interface — one contract for every channel (brief section 5).
 
-send(lead, message, channel) → SendResult
-Setiap adapter self-describing: capability flags supaya UI tak tunjuk
-'blast button' untuk channel yang tak sokong outbound (brief §6).
+send(lead, message, subject) -> SendResult
+
+Each adapter is self-describing: capability flags stop the UI from showing a
+'blast' button for a channel that cannot actually do outbound sends (brief section 6).
 """
 from dataclasses import dataclass
 
@@ -15,8 +16,8 @@ class SendResult:
 
 class BaseAdapter:
     channel: str = "base"
-    supports_outbound: bool = False       # boleh blast automatik?
-    requires_consent: bool = True         # PDPA: perlu rekod consent aktif
+    supports_outbound: bool = False       # can this channel blast automatically?
+    requires_consent: bool = True         # PDPA: an active consent record is required
     needs_credential: bool = True
 
     def is_configured(self) -> bool:
@@ -33,4 +34,4 @@ def get_adapter(channel: str) -> BaseAdapter:
     if channel == "telegram":
         from adapters.telegram_bot import TelegramAdapter
         return TelegramAdapter()
-    raise ValueError(f"Channel tak dikenali: {channel}")
+    raise ValueError(f"Unknown channel: {channel}")

@@ -1,13 +1,15 @@
-"""Scheduler blast — APScheduler + rate limit per channel (brief §5).
+"""Blast scheduler — rate-limited campaign sending (brief section 5).
 
-Blast = satu job yang menghantar mesej campaign kepada leads yang layak:
-  - ada consent AKTIF untuk channel itu (PDPA)
-  - TAK ada dalam suppression list
-  - ada alamat untuk channel itu
-Rate limit: jumlah max per jam ikut config; job dihantar berperingkat.
+A blast sends a campaign message to every eligible lead:
+  - has ACTIVE consent for that channel (PDPA)
+  - is NOT on the suppression list
+  - has an address for that channel
+
+Rate limit: a configurable maximum per hour; sends pause at the cap and
+resume when the next hourly window opens.
 """
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from models import db, Lead, Consent, Suppression, Campaign, Event
 
@@ -27,7 +29,10 @@ def eligible_leads(app, campaign: Campaign) -> list[Lead]:
 
 
 def run_blast(app, campaign_id: int):
-    """Hantar satu blast ikut rate limit. Dipanggil dari UI/scheduler."""
+    """Send one blast, respecting the per-channel rate limit.
+
+    Called from the UI (background thread) or from APScheduler.
+    """
     import config
     from adapters import get_adapter
 
@@ -45,7 +50,7 @@ def run_blast(app, campaign_id: int):
 
         for lead in eligible_leads(app, campaign):
             if sent_in_window >= cap:
-                # tunggu sampai window jam berikutnya tamat
+                # Wait until the next hourly window opens
                 sleep_s = 3600 - (datetime.now(timezone.utc) - window_start).total_seconds()
                 if sleep_s > 0:
                     time.sleep(sleep_s)

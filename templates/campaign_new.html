@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Campaign Baru</h2>
+<h2>New Campaign</h2>
 <form method="post">
-  <p>Nama: <input type="text" name="name" required></p>
+  <p>Name: <input type="text" name="name" required></p>
   <p>Channel:
     <select name="channel">
       <option value="email">Email (Brevo)</option>
       <option value="telegram">Telegram Bot</option>
     </select></p>
-  <p>Subject (email sahaja): <input type="text" name="subject"></p>
-  <textarea name="message" rows="10" required placeholder="Mesej..."></textarea>
-  <p><button>Simpan (draft)</button></p>
+  <p>Subject (email only): <input type="text" name="subject"></p>
+  <textarea name="message" rows="10" required placeholder="Your message..."></textarea>
+  <p><button>Save (draft)</button></p>
 </form>
 {% endblock %}

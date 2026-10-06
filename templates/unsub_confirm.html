@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Pengesahan Berhenti Melanggan</h2>
-<p>Anda ({% if lead.email %}{{ lead.email }}{% endif %}{% if lead.phone %} {{ lead.phone }}{% endif %})
-akan berhenti menerima mesej melalui <b>{{ channel }}</b>.</p>
+<h2>Unsubscribe Confirmation</h2>
+<p>You ({% if lead.email %}{{ lead.email }}{% endif %}{% if lead.phone %} {{ lead.phone }}{% endif %})
+will stop receiving messages via <b>{{ channel }}</b>.</p>
 <form method="post">
-  <button>Sahkan berhenti melanggan</button>
+  <button>Confirm unsubscribe</button>
 </form>
 {% endblock %}

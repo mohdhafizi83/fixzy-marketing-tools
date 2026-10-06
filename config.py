@@ -1,4 +1,4 @@
-"""Konfigurasi pusat — semua secrets dari .env, tiada hardcode."""
+"""Central configuration — all secrets come from .env, nothing hardcoded."""
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -21,14 +21,14 @@ MAIL_FROM = os.getenv("MAIL_FROM", "")
 # Telegram bot
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-# Link unsubscribe perlu domain public supaya boleh diklik penerima
+# Unsubscribe links must use a publicly reachable URL so recipients can click them
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:5558")
 
-# Rate cap per channel per jam (Brevo free = 300/hr; override ikut akaun anda)
+# Rate cap per channel per hour (Brevo free tier = 300/day; override per your account)
 RATE_LIMITS_PER_HOUR = {
     "email": int(os.getenv("EMAIL_RATE_PER_HOUR", "300")),
-    "telegram": int(os.getenv("TELEGRAM_RATE_PER_HOUR", "25")),  # Telegram ~30/s global; kita konservatif
+    "telegram": int(os.getenv("TELEGRAM_RATE_PER_HOUR", "25")),  # Telegram allows ~30/s globally; we stay conservative
 }
 
-# AI copy drafts (local LLM, F1 optional hook)
+# AI copy drafts (local LLM, optional F1 hook)
 LLM_URL = os.getenv("LLM_URL", "http://localhost:8080")

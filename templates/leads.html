@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Leads (500 terkini)</h2>
+<h2>Leads (500 most recent)</h2>
 <table>
-  <tr><th>ID</th><th>Email</th><th>Telefon</th><th>Telegram</th><th>Sumber</th>
-      <th>Consent email</th><th>Consent TG</th></tr>
+  <tr><th>ID</th><th>Email</th><th>Phone</th><th>Telegram</th><th>Source</th>
+      <th>Email consent</th><th>TG consent</th></tr>
   {% for l in leads %}
   <tr>
     <td>{{ l.id }}</td><td>{{ l.email or '—' }}</td><td>{{ l.phone or '—' }}</td>

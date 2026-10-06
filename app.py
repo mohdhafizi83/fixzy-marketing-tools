@@ -1,13 +1,13 @@
-"""Fixzy Marketing Tools — F1 app entry.
+"""Fixzy Marketing Tools — F1 application entry point.
 
 Routes:
-  /                     dashboard (kiraun leads, campaigns, status channel)
-  /import               import leads: paste text / senarai URL / crawl site
-  /leads                senarai leads
-  /campaign/new         bina campaign
-  /campaign/<id>/start  jalankan blast (background thread)
-  /unsubscribe/<token>  halaman unsub (PDPA) — GET tanya, POST sahkan
-  /telegram/webhook     /start bot → daftar chat_id + consent
+  /                     dashboard (lead/campaign counts, channel status)
+  /import               import leads: paste text / URL list / crawl a site
+  /leads                lead list
+  /campaign/new         create a campaign
+  /campaign/<id>/start  run a blast (background thread)
+  /unsubscribe/<token>  unsubscribe page (PDPA) — GET asks, POST confirms
+  /telegram/webhook     bot /start -> register chat_id + consent
 """
 import threading
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
@@ -27,8 +27,7 @@ with app.app_context():
 
 
 def _get_or_create_lead(email=None, phone=None, source="") -> Lead:
-    """Dedup: email lowercase atau phone dinormalisasi sudah wujud → reuse."""
-    q = Lead.query
+    """Dedup: reuse an existing lead if the lowercase email or normalized phone exists."""
     if email:
         existing = Lead.query.filter_by(email=email.lower()).first()
         if existing:
@@ -101,7 +100,7 @@ def import_leads():
                     added["phone"] += 1
         db.session.commit()
 
-    flash(f"Import selesai: +{added['email']} email baharu, +{added['phone']} telefon baharu.")
+    flash(f"Import finished: +{added['email']} new emails, +{added['phone']} new phone numbers.")
     return redirect(url_for("leads"))
 
 
@@ -119,7 +118,7 @@ def campaign_new():
                     message=request.form["message"])
         db.session.add(c)
         db.session.commit()
-        flash(f"Campaign '{c.name}' dicipta (id {c.id}).")
+        flash(f"Campaign '{c.name}' created (id {c.id}).")
         return redirect(url_for("dashboard"))
     return render_template("campaign_new.html")
 
@@ -129,7 +128,7 @@ def campaign_start(cid):
     from scheduler import run_blast
     t = threading.Thread(target=run_blast, args=(app, cid), daemon=True)
     t.start()
-    flash(f"Blast campaign {cid} dimulakan (background).")
+    flash(f"Blast for campaign {cid} started (running in background).")
     return redirect(url_for("dashboard"))
 
 
@@ -137,7 +136,7 @@ def campaign_start(cid):
 def unsubscribe(token):
     lead = Lead.query.filter_by(unsub_token=token).first()
     if not lead:
-        return "Token tidak ditemui.", 404
+        return "Token not found.", 404
     channel = request.args.get("ch", "email")
     if request.method == "POST":
         c = Consent.query.filter_by(lead_id=lead.id, channel=channel)\
@@ -155,7 +154,7 @@ def unsubscribe(token):
 
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook():
-    """Telegram update → jika /start, daftar chat_id + consent telegram."""
+    """Telegram update — if the text is /start, register chat_id + telegram consent."""
     data = request.get_json(silent=True) or {}
     msg = data.get("message") or {}
     chat = msg.get("chat") or {}
@@ -175,6 +174,6 @@ def telegram_webhook():
 
 
 if __name__ == "__main__":
-    # 0.0.0.0 supaya boleh diakses dari LAN (phone/desktop lain);
-    # jangan dedah ke internet terus — di sebalik reverse proxy/firewall sahaja
+    # Bind 0.0.0.0 so the UI is reachable from the LAN (other phones/desktops).
+    # Do NOT expose this directly to the internet — keep it behind a reverse proxy/firewall.
     app.run(host="0.0.0.0", port=5558, debug=False)

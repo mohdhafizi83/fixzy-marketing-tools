@@ -1,4 +1,4 @@
-"""Skema DB F1: leads, consent ledger, suppression list, campaigns, events."""
+"""F1 database schema: leads, consent ledger, suppression list, campaigns, events."""
 import secrets
 from flask_sqlalchemy import SQLAlchemy
 
@@ -12,10 +12,10 @@ def _token() -> str:
 class Lead(db.Model):
     __tablename__ = "leads"
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(255), index=True)          # sudah lowercase
-    phone = db.Column(db.String(32), index=True)          # dinormalisasi MY: 601XXXXXXXX
-    telegram_chat_id = db.Column(db.String(32), index=True)  # didaftarkan via /start bot
-    source = db.Column(db.String(255))                   # fail/crawl/manual
+    email = db.Column(db.String(255), index=True)              # stored lowercase
+    phone = db.Column(db.String(32), index=True)               # normalized MY format: 601XXXXXXXX
+    telegram_chat_id = db.Column(db.String(32), index=True)    # registered via bot /start
+    source = db.Column(db.String(255))                        # file/crawl/manual
     unsub_token = db.Column(db.String(64), unique=True, default=_token)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
@@ -25,13 +25,17 @@ class Lead(db.Model):
 
 
 class Consent(db.Model):
-    """Consent ledger (PDPA 2010): setiap grant dan revoke dicatat, tak dipadam."""
+    """Consent ledger (Malaysia PDPA 2010).
+
+    Every grant and revocation is recorded and never deleted, so consent
+    history can always be proven.
+    """
     __tablename__ = "consent"
     id = db.Column(db.Integer, primary_key=True)
     lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), index=True, nullable=False)
-    channel = db.Column(db.String(32), nullable=False)    # email / telegram
+    channel = db.Column(db.String(32), nullable=False)        # email / telegram
     granted_at = db.Column(db.DateTime, server_default=db.func.now())
-    granted_source = db.Column(db.String(255))            # manual_import_ui, landing_page, dsb
+    granted_source = db.Column(db.String(255))                # manual_import_ui, landing_page, etc.
     revoked_at = db.Column(db.DateTime)
 
     @classmethod
@@ -42,12 +46,12 @@ class Consent(db.Model):
 
 
 class Suppression(db.Model):
-    """Senarai hitam automatik: unsub/bounce → jangan hubungi lagi."""
+    """Automatic blocklist: unsubscribed or bounced contacts are never contacted again."""
     __tablename__ = "suppression"
     id = db.Column(db.Integer, primary_key=True)
     channel = db.Column(db.String(32), nullable=False)
-    value = db.Column(db.String(255), nullable=False)     # email atau phone dinormalisasi
-    reason = db.Column(db.String(64), nullable=False)     # unsubscribed / bounced / complained
+    value = db.Column(db.String(255), nullable=False)         # email or normalized phone
+    reason = db.Column(db.String(64), nullable=False)         # unsubscribed / bounced / complained
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     @classmethod
@@ -62,19 +66,19 @@ class Campaign(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     channel = db.Column(db.String(32), nullable=False)
-    subject = db.Column(db.String(255))                  # email sahaja
+    subject = db.Column(db.String(255))                      # email only
     message = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(32), default="draft")   # draft/running/paused/done
+    status = db.Column(db.String(32), default="draft")       # draft/running/paused/done
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 
 class Event(db.Model):
-    """Satir rekod outbound — asas analytics F2."""
+    """One record per outbound send — the basis for F2 analytics."""
     __tablename__ = "events"
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey("campaigns.id"), index=True)
     lead_id = db.Column(db.Integer, index=True)
     channel = db.Column(db.String(32))
-    status = db.Column(db.String(32))                    # sent / failed / skipped
+    status = db.Column(db.String(32))                       # sent / failed / skipped
     detail = db.Column(db.Text)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
