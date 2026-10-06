@@ -7,6 +7,8 @@
      <input type="file" name="file" accept=".txt,.csv"></p>
   <p><label><input type="radio" name="mode" value="crawl"> Crawl an entire website</label>
      <input type="number" name="max_pages" value="20" min="1" max="200" style="width:80px"> max pages</p>
+  <p><label><input type="radio" name="mode" value="search"> Search API discovery (SerpAPI / SearXNG)</label>
+     <span style="color:#666">— enter a query like: "kedai kopi KL contact"; top 5 results are crawled</span></p>
   <textarea name="text" rows="12" placeholder="jane@example.com, 012-345 6789, +601****4567 ... or http://target-site.com"></textarea>
   <p><button>Import</button></p>
 </form>

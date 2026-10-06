@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Analytics</h2>
+
+<div class="cards">
+  <div class="card"><b>{{ summary.total_attempts }}</b> Send attempts</div>
+  <div class="card"><b class="ok">{{ summary.sent }}</b> Sent</div>
+  <div class="card"><b class="bad">{{ summary.failed }}</b> Failed</div>
+  <div class="card"><b>{{ '%.1f'|format(summary.success_rate) }}%</b> Success rate</div>
+  <div class="card"><b>{{ summary.leads }}</b> Leads</div>
+  <div class="card"><b>{{ summary.suppressed }}</b> Suppressed</div>
+</div>
+
+<h3>Per channel (last 30 days)</h3>
+<table>
+  <tr><th>Channel</th><th>Sent</th><th>Failed</th><th>Success rate</th></tr>
+  {% for ch, st in per_channel.items() %}
+  {% set tot = st.sent + st.failed %}
+  <tr>
+    <td>{{ ch }}</td><td>{{ st.sent }}</td><td>{{ st.failed }}</td>
+    <td>{{ '%.1f'|format(st.sent / tot * 100) if tot else '—' }}%</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" style="color:#666">No sends in the last 30 days yet.</td></tr>
+  {% endfor %}
+</table>
+
+<h3>Per campaign</h3>
+<table>
+  <tr><th>ID</th><th>Name</th><th>Channel</th><th>Status</th><th>Sent</th><th>Failed</th><th>Success rate</th></tr>
+  {% for c in per_campaign %}
+  <tr>
+    <td>{{ c.id }}</td><td>{{ c.name }}</td><td>{{ c.channel }}</td><td>{{ c.status }}</td>
+    <td>{{ c.sent }}</td><td>{{ c.failed }}</td>
+    <td>{{ '%.1f'|format(c.success_rate) }}%</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" style="color:#666">No campaigns yet.</td></tr>
+  {% endfor %}
+</table>
+
+<h3>Suppression breakdown</h3>
+<table>
+  <tr><th>Channel</th><th>Reason</th><th>Count</th></tr>
+  {% for s in suppression %}
+  <tr><td>{{ s.channel }}</td><td>{{ s.reason }}</td><td>{{ s.count }}</td></tr>
+  {% else %}
+  <tr><td colspan="3" style="color:#666">Nothing suppressed yet — that's good news.</td></tr>
+  {% endfor %}
+</table>
+
+<h3>Recent failures (debug view)</h3>
+<table>
+  <tr><th>Event</th><th>Channel</th><th>Lead</th><th>Error detail</th><th>When</th></tr>
+  {% for f in failures %}
+  <tr>
+    <td>{{ f.id }}</td><td>{{ f.channel }}</td><td>{{ f.lead_id }}</td>
+    <td style="font-family:monospace;font-size:.85em">{{ f.detail }}</td>
+    <td>{{ f.at }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" style="color:#666">No failures recorded.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

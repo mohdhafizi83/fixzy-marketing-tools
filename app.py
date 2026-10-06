@@ -79,7 +79,7 @@ def _get_or_create_lead(email=None, phone=None, source="") -> Lead:
 def dashboard():
     from adapters import get_adapter
     chans = {}
-    for ch in ("email", "telegram"):
+    for ch in ("email", "telegram", "sms"):
         a = get_adapter(ch)
         chans[ch] = {"configured": a.is_configured(), "outbound": a.supports_outbound}
     return render_template("dashboard.html",
@@ -88,6 +88,18 @@ def dashboard():
                          n_suppressed=Suppression.query.count(),
                          campaigns=Campaign.query.order_by(Campaign.id.desc()).limit(20).all(),
                          channels=chans)
+
+
+@app.route("/analytics")
+def analytics():
+    """F2 analytics dashboard — real numbers from the events table."""
+    import analytics as an
+    return render_template("analytics.html",
+                         summary=an.summary(),
+                         per_channel=an.per_channel(),
+                         per_campaign=an.per_campaign(),
+                         suppression=an.suppression_breakdown(),
+                         failures=an.recent_failures())
 
 
 @app.route("/import", methods=["GET", "POST"])
@@ -141,6 +153,26 @@ def import_leads():
                 _get_or_create_lead(phone=p, source=f"crawl:{url}")
                 if not before:
                     added["phone"] += 1
+        elif mode == "search":
+            # F2: discover source URLs via search API, crawl each for contacts
+            from searchapi import search
+            urls, err = search(text.strip(), num=5)
+            if not urls:
+                flash(f"Search failed: {err}")
+                return redirect(url_for("import_leads"))
+            c = Crawler(max_pages=int(request.form.get("max_pages", 5)))
+            for u in urls:
+                e_list, p_list = c.crawl_site(u)
+                for e in e_list:
+                    before = Lead.query.filter_by(email=e.lower()).first()
+                    _get_or_create_lead(email=e, source=f"search:{u}")
+                    if not before:
+                        added["email"] += 1
+                for p in p_list:
+                    before = Lead.query.filter_by(phone=p).first()
+                    _get_or_create_lead(phone=p, source=f"search:{u}")
+                    if not before:
+                        added["phone"] += 1
         db.session.commit()
 
     flash(f"Import finished: +{added['email']} new emails, +{added['phone']} new phone numbers.")

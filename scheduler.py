@@ -21,7 +21,8 @@ def eligible_leads(app, campaign: Campaign) -> list[Lead]:
             if not Consent.active_for(lead.id, campaign.channel):
                 continue
             addr = lead.email if campaign.channel == "email" else \
-                (lead.telegram_chat_id if campaign.channel == "telegram" else None)
+                (lead.telegram_chat_id if campaign.channel == "telegram" else
+                 (lead.phone if campaign.channel == "sms" else None))
             if not addr or Suppression.is_suppressed(campaign.channel, addr):
                 continue
             out.append(lead)

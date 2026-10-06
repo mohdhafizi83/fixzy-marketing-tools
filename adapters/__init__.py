@@ -34,4 +34,10 @@ def get_adapter(channel: str) -> BaseAdapter:
     if channel == "telegram":
         from adapters.telegram_bot import TelegramAdapter
         return TelegramAdapter()
+    if channel == "sms":
+        # Prefer Twilio when configured; fall back to RedSMS
+        from adapters.twilio_sms import TwilioSmsAdapter
+        from adapters.redsms import RedSmsAdapter
+        tw = TwilioSmsAdapter()
+        return tw if tw.is_configured() else RedSmsAdapter()
     raise ValueError(f"Unknown channel: {channel}")

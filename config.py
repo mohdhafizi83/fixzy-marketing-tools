@@ -21,6 +21,20 @@ MAIL_FROM = os.getenv("MAIL_FROM", "")
 # Telegram bot
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
+# Twilio SMS (Tier 1, verified vs twilio.com/docs)
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")   # e.g. +60123456789
+
+# RedSMS MY (format NOT verified against official docs — see adapter docstring)
+REDSMS_USERNAME = os.getenv("REDSMS_USERNAME", "")
+REDSMS_PASSWORD = os.getenv("REDSMS_PASSWORD", "")
+REDSMS_SENDER_ID = os.getenv("REDSMS_SENDER_ID", "Fixzy")
+
+# Search API for lead source discovery (F2)
+SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
+SEARXNG_URL = os.getenv("SEARXNG_URL", "")   # self-hosted alternative
+
 # Unsubscribe links must use a publicly reachable URL so recipients can click them
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:5558")
 
@@ -28,6 +42,7 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:5558")
 RATE_LIMITS_PER_HOUR = {
     "email": int(os.getenv("EMAIL_RATE_PER_HOUR", "300")),
     "telegram": int(os.getenv("TELEGRAM_RATE_PER_HOUR", "25")),  # Telegram allows ~30/s globally; we stay conservative
+    "sms": int(os.getenv("SMS_RATE_PER_HOUR", "100")),           # cost control: SMS is paid per message
 }
 
 # AI copy drafts (local LLM, optional F1 hook)
