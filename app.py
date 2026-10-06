@@ -10,6 +10,7 @@ Routes:
   /telegram/webhook     bot /start -> register chat_id + consent
 """
 import threading
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 import config
@@ -66,6 +67,16 @@ def import_leads():
     text = request.form.get("text", "")
     added = {"email": 0, "phone": 0}
 
+    # Optional uploaded file (.txt/.csv): its content is treated like pasted text
+    upload = request.files.get("file")
+    if upload and upload.filename:
+        try:
+            text = upload.read().decode("utf-8", errors="ignore")
+        except Exception:
+            flash("Could not read the uploaded file.")
+            return redirect(url_for("import_leads"))
+        mode = "file"
+
     with app.app_context():
         if mode in ("paste", "file"):
             emails = extract_emails(text)
@@ -108,6 +119,37 @@ def import_leads():
 def leads():
     return render_template("leads.html", leads=Lead.query.order_by(Lead.id.desc()).limit(500).all(),
                          Consent=Consent)
+
+
+@app.route("/export")
+def export_leads():
+    """Export all leads to CSV or TXT (legacy feature: TXT/CSV export).
+
+    CSV columns: email, phone, telegram_chat_id, source, created_at
+    TXT: one email per line (matches the legacy output format).
+    """
+    import csv, io
+    from flask import Response
+
+    fmt = request.args.get("fmt", "csv")
+    leads = Lead.query.order_by(Lead.id).all()
+    ts = datetime.utcnow().strftime("%Y%m%d")
+
+    if fmt == "txt":
+        buf = "\n".join(l.email for l in leads if l.email)
+        return Response(buf + "\n", mimetype="text/plain",
+                      headers={"Content-Disposition":
+                              f"attachment; filename=leads_{ts}.txt"})
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["email", "phone", "telegram_chat_id", "source", "created_at"])
+    for l in leads:
+        w.writerow([l.email or "", l.phone or "", l.telegram_chat_id or "",
+                    l.source or "", l.created_at or ""])
+    return Response(out.getvalue(), mimetype="text/csv",
+                   headers={"Content-Disposition":
+                           f"attachment; filename=leads_{ts}.csv"})
 
 
 @app.route("/campaign/new", methods=["GET", "POST"])

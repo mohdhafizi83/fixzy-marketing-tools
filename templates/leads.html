@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Leads (500 most recent)</h2>
+<p>
+  <a href="{{ url_for('export_leads', fmt='csv') }}"><button type="button">Export CSV</button></a>
+  <a href="{{ url_for('export_leads', fmt='txt') }}"><button type="button">Export TXT</button></a>
+</p>
 <table>
   <tr><th>ID</th><th>Email</th><th>Phone</th><th>Telegram</th><th>Source</th>
       <th>Email consent</th><th>TG consent</th></tr>

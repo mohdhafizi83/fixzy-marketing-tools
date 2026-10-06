@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Import Leads</h2>
-<form method="post">
+<form method="post" enctype="multipart/form-data">
   <p><label><input type="radio" name="mode" value="paste" checked> Paste text (emails/phones)</label></p>
+  <p><label><input type="radio" name="mode" value="file"> Upload a .txt / .csv file</label>
+     <input type="file" name="file" accept=".txt,.csv"></p>
   <p><label><input type="radio" name="mode" value="crawl"> Crawl an entire website</label>
      <input type="number" name="max_pages" value="20" min="1" max="200" style="width:80px"> max pages</p>
   <textarea name="text" rows="12" placeholder="jane@example.com, 012-345 6789, +601****4567 ... or http://target-site.com"></textarea>
