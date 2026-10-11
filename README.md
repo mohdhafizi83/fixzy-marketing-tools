@@ -79,6 +79,46 @@ The UI holds lead data and settings, so it is protected by HTTP Basic auth.
   and `/webhooks/*` (providers call them; each webhook has its own
   verification — see below).
 
+## Security
+
+Full threat model, control matrix, and fail-closed statements:
+**[SECURITY.md](SECURITY.md)**. Highlights:
+
+- **CSRF**: session token enforced on every state-changing request
+  (`hmac.compare_digest`); provider webhooks are exempt by design and use
+  their own signature verification instead.
+- **Webhook signatures**: WhatsApp/Meta require `X-Hub-Signature-256` when
+  the app secret is set; Brevo uses a constant-time shared key; Telegram
+  checks `X-Telegram-Bot-Api-Secret-Token`. All fail closed when the secret
+  is unset — an unconfigured webhook is a dead webhook, never an open one.
+- **SSRF guard**: crawler, LLM provider URLs, and self-hosted SearXNG URLs
+  are checked against private/loopback/link-local ranges (incl. cloud
+  metadata `169.254.169.254`); redirects are re-checked hop-by-hop. For a
+  local Ollama/llama.cpp server set `ALLOW_PRIVATE_LLM=1` (documented,
+  default deny).
+- **Headers**: CSP `default-src 'none'` (inline script/style scoped
+  honestly — see SECURITY.md), `X-Frame-Options DENY`, `nosniff`,
+  `no-referrer`, `X-XSS-Protection 0`, `Cache-Control: no-store` on
+  settings/API routes.
+- **Limits**: 1 MB request body cap (413), 60 req/min per IP on webhooks,
+  10 failed admin logins/min per IP (429).
+- **Supply chain**: fully pinned `requirements.txt`; CI (SHA-pinned Actions)
+  runs pytest, ruff, bandit, pip-audit, and gitleaks.
+
+Reject-path demos (recruiter-visible proof):
+
+```bash
+# CSRF without token -> 400
+curl -s -a admin:PW -o /dev/null -w '%{http_code}\n' -X POST \
+     http://127.0.0.1:5558/campaign/new -d 'name=x&channel=email&message=hi'
+# unsigned webhook -> 401/403
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+     http://127.0.0.1:5558/webhooks/whatsapp -H 'Content-Type: application/json' -d '{}'
+# SSRF-refusing LLM URL -> not saved
+curl -s -a admin:PW -X POST http://127.0.0.1:5558/settings/llm \
+     -d 'action=add&name=evil&base_url=http://169.254.169.254/v1' -o- | grep -o 'not saved[^<]*'
+```
+
 ## Webhook security
 
 - Meta webhooks (`/webhooks/whatsapp`, `/webhooks/meta`): hub.challenge
@@ -131,10 +171,12 @@ DB, overrides `.env`).
 .venv/bin/pytest tests/
 ```
 
-29 tests covering: extractor edge cases (MY phone rules), the PDPA consent +
-suppression eligibility gate, webhook fail-closed behavior, and webhook
-signature forgery rejection. Uses a throwaway SQLite DB — never touches
-your data.
+58 tests covering: extractor edge cases (MY phone rules), the PDPA consent +
+suppression eligibility gate, webhook fail-closed behavior, webhook
+signature forgery rejection, CSRF, security headers, SSRF accept/reject
+paths, rate limiting, and error hygiene. Uses a throwaway SQLite DB — never
+touches your data. CI (GitHub Actions) runs the same suite plus ruff,
+bandit, pip-audit, and gitleaks on every push.
 
 ## Deployment (reference setup)
 
