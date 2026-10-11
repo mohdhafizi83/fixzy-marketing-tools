@@ -1,3 +1,7 @@
+# Runtime deps pinned to exact versions (direct + transitive, from a fresh
+# venv `pip freeze` subset) so pip-audit in CI audits a deterministic tree.
+# Dev tools (pytest is the exception — kept here for one-command test setup)
+# like ruff/bandit/pip-audit are installed separately in CI.
 Flask==3.1.3
 Flask-SQLAlchemy==3.1.1
 SQLAlchemy==2.1.3
@@ -8,3 +12,20 @@ requests-oauthlib==2.0.0
 selectolax==1.0.0
 python-dotenv==1.2.4
 pytest==9.1.1
+# transitive (pinned for pip-audit determinism)
+blinker==1.9.0
+certifi==2026.7.22
+charset-normalizer==3.5.2
+click==8.5.0
+idna==3.20
+iniconfig==2.3.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.4
+oauthlib==4.0.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0
+PyYAML==6.0.3
+urllib3==2.8.0
+Werkzeug==3.1.9
