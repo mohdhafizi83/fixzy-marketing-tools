@@ -21,6 +21,7 @@ import time
 import requests
 
 import config
+from netguard import check_url_allowed
 
 SYSTEM_PROMPT = (
     "You are a concise marketing copywriter for a Malaysian SME audience. "
@@ -45,6 +46,20 @@ def _norm_base(base_url: str) -> str:
     return base
 
 
+def check_provider(provider) -> str:
+    """SSRF guard for a user-configured LLM provider base URL.
+
+    Returns '' if allowed, else a human-readable refusal. Provider base URLs
+    come from the Settings UI, so they are treated as untrusted input:
+    private/loopback/link-local targets (incl. cloud metadata
+    169.254.169.254) are refused unless ALLOW_PRIVATE_LLM=1 is set in .env —
+    the documented escape hatch for a local Ollama/llama.cpp server.
+    """
+    ok, reason = check_url_allowed(provider.base_url or "",
+                                   allow_private=config.ALLOW_PRIVATE_LLM)
+    return "" if ok else reason
+
+
 def _headers(api_key: str) -> dict:
     h = {"Content-Type": "application/json"}
     if api_key:
@@ -54,6 +69,9 @@ def _headers(api_key: str) -> dict:
 
 def list_models(provider) -> tuple[list[str], str]:
     """List model ids from a provider. Returns (models, error)."""
+    refusal = check_provider(provider)
+    if refusal:
+        return [], refusal
     try:
         r = requests.get(f"{_norm_base(provider.base_url)}/models",
                         headers=_headers(provider.api_key), timeout=15)
@@ -89,6 +107,9 @@ def draft_message(brief: str, channel: str = "email",
         provider = _default_provider()
     if provider is None:
         return None, "No LLM provider configured. Add one in Settings -> LLM Providers."
+    refusal = check_provider(provider)
+    if refusal:
+        return None, refusal
 
     if model is None:
         models, err = list_models(provider)

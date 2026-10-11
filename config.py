@@ -99,3 +99,10 @@ LLM_URL = os.getenv("LLM_URL", "http://localhost:8080")
 # (cloud metadata endpoints, internal LAN services). Set CRAWL_ALLOW_PRIVATE=1
 # only if you deliberately crawl internal sites you own.
 CRAWL_ALLOW_PRIVATE = os.getenv("CRAWL_ALLOW_PRIVATE", "") == "1"
+
+# SSRF guard for LLM providers (aicopy.py) and the SearXNG backend: user-
+# configured base URLs are checked against private/loopback/link-local ranges
+# (incl. cloud metadata 169.254.169.254). A local Ollama/llama.cpp server on
+# localhost is a legitimate use: set ALLOW_PRIVATE_LLM=1 to permit loopback/
+# private LLM and self-hosted-search base URLs. Default is deny.
+ALLOW_PRIVATE_LLM = os.getenv("ALLOW_PRIVATE_LLM", "") == "1"

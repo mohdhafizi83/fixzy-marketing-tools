@@ -11,6 +11,7 @@ extract contacts.
 import requests
 
 import config
+from netguard import check_url_allowed
 
 
 def active_backend() -> str:
@@ -56,10 +57,19 @@ def _serpapi(query: str, num: int) -> tuple[list[str], str]:
 def _searxng(query: str, num: int) -> tuple[list[str], str]:
     from models import Setting
     base = (Setting.get("searxng_url") or config.SEARXNG_URL).rstrip("/")
+    # Defense in depth: the URL is user-configurable (Settings UI / .env) —
+    # refuse private/internal targets even if a bad value was saved earlier.
+    ok, reason = check_url_allowed(base,
+                                   allow_private=config.ALLOW_PRIVATE_LLM)
+    if not ok:
+        return [], f"searxng blocked: {reason}"
     try:
         r = requests.get(f"{base}/search",
-                        params={"q": query, "format": "json", "pageno": 1},
-                        timeout=20)
+                         params={"q": query, "format": "json", "pageno": 1},
+                         timeout=20, allow_redirects=False)
+        if r.is_redirect:
+            # A redirect could point at an internal host: refuse, don't follow.
+            return [], "searxng blocked: redirect refused"
         results = r.json().get("results", [])
         urls = [res["url"] for res in results[:num] if res.get("url")]
         return urls, ""

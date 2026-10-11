@@ -7,14 +7,14 @@ Security: SSRF guard — targets resolving to loopback/private/link-local/reserv
 addresses (cloud metadata endpoints like 169.254.169.254, internal LAN
 services) are refused unless CRAWL_ALLOW_PRIVATE=1 is set explicitly.
 """
-import ipaddress
-import socket
 import time
 import urllib.robotparser
 from urllib.parse import urldefrag, urljoin, urlparse
 
 import requests
 from selectolax.lexbor import LexborHTMLParser
+
+from netguard import check_url_allowed
 
 UA = "FixzyMarketingTools/0.1 (lead extraction; contact admin via site)"
 DEFAULT_DELAY_S = 1.0
@@ -23,48 +23,14 @@ DEFAULT_MAX_DEPTH = 2
 MAX_PAGE_BYTES = 2 * 1024 * 1024  # 2 MB per page cap
 
 
-def _is_private_host(host: str) -> bool:
-    """True if the host is an IP literal or resolves to a private/reserved address.
-
-    Blocks SSRF against cloud metadata (169.254.169.254), loopback, RFC1918,
-    CGNAT and link-local ranges. DNS resolution failures are treated as
-    private (fail closed) so an unresolvable name is never fetched blindly.
-    """
-    if not host:
-        return True
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except socket.gaierror:
-        return True
-    for info in infos:
-        try:
-            ip = ipaddress.ip_address(info[4][0])
-        except ValueError:
-            return True
-        if (ip.is_private or ip.is_loopback or ip.is_link_local
-                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
-            return True
-    return False
-
-
 def check_target_allowed(url: str) -> tuple[bool, str]:
     """Public guard used before any crawl/fetch of a user-supplied URL.
 
-    Returns (allowed, reason). Only http/https to public hosts passes
-    (unless CRAWL_ALLOW_PRIVATE is set).
+    Delegates to netguard (scheme + userinfo + resolved-IP policy); private
+    targets are allowed only when CRAWL_ALLOW_PRIVATE is set explicitly.
     """
     import config
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        return False, "only http/https URLs are allowed"
-    host = parsed.hostname or ""
-    if not _is_private_host(host):
-        return True, ""
-    if config.CRAWL_ALLOW_PRIVATE:
-        return True, ""
-    return False, (f"target '{host}' is a private/internal address — "
-                  "blocked (SSRF protection). Set CRAWL_ALLOW_PRIVATE=1 in "
-                  ".env only if you own this internal target.")
+    return check_url_allowed(url, allow_private=config.CRAWL_ALLOW_PRIVATE)
 
 
 class Crawler:
@@ -94,25 +60,44 @@ class Crawler:
         return rp.can_fetch(UA, url)
 
     def fetch(self, url: str) -> str:
-        """Fetch the HTML for one URL. Returns '' on failure or block."""
+        """Fetch the HTML for one URL. Returns '' on failure or block.
+
+        Redirects are NOT followed blindly: each 3xx Location is re-checked
+        with the SSRF guard (up to 3 hops), so a public host cannot bounce
+        the crawler into 169.254.169.254 or an internal LAN address.
+        """
         if not self._allowed(url):
             return ""
-        try:
-            # stream=True + explicit byte cap: never buffer an unbounded body
-            # (a hostile or misconfigured site could otherwise exhaust memory).
-            with self.session.get(url, timeout=15, stream=True) as r:
-                if r.status_code >= 400:
-                    return ""
-                chunks, size = [], 0
-                for chunk in r.iter_content(chunk_size=65536):
-                    chunks.append(chunk)
-                    size += len(chunk)
-                    if size > MAX_PAGE_BYTES:
-                        break
-                return b"".join(chunks).decode(r.encoding or "utf-8",
-                                            errors="replace")
-        except requests.RequestException:
-            return ""
+        for _hop in range(4):
+            try:
+                # stream=True + explicit byte cap: never buffer an unbounded
+                # body (a hostile or misconfigured site could exhaust memory).
+                with self.session.get(url, timeout=15, stream=True,
+                                      allow_redirects=False) as r:
+                    if r.is_redirect:
+                        loc = r.headers.get("Location", "")
+                        if not loc:
+                            return ""
+                        url = urldefrag(urljoin(url, loc)).url
+                        allowed, _reason = check_target_allowed(url)
+                        if not allowed:
+                            return ""
+                        if not self._allowed(url):
+                            return ""
+                        continue
+                    if r.status_code >= 400:
+                        return ""
+                    chunks, size = [], 0
+                    for chunk in r.iter_content(chunk_size=65536):
+                        chunks.append(chunk)
+                        size += len(chunk)
+                        if size > MAX_PAGE_BYTES:
+                            break
+                    return b"".join(chunks).decode(r.encoding or "utf-8",
+                                                   errors="replace")
+            except requests.RequestException:
+                return ""
+        return ""  # redirect chain too long
 
     def crawl_site(self, start_url: str,
                   on_page=None) -> tuple[list[str], list[str]]:
