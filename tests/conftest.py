@@ -24,6 +24,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 @pytest.fixture(scope="session")
 def app():
     import app as app_module
+
+    # Test-only route to exercise the generic 500 handler (registered before
+    # the first request — Flask forbids adding routes afterwards).
+    @app_module.app.route("/_boom_test")
+    def _boom_test():
+        raise RuntimeError("secret internal detail")
+
     with app_module.app.app_context():
         from models import db
         db.create_all()
@@ -35,6 +42,15 @@ def app():
 @pytest.fixture()
 def client(app):
     return app.test_client()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """In-memory limiter state must never leak between tests."""
+    import ratelimit
+    ratelimit.reset()
+    yield
+    ratelimit.reset()
 
 
 @pytest.fixture()

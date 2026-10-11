@@ -27,6 +27,7 @@ from flask import (
 )
 
 import config
+import ratelimit
 from crawler import Crawler, check_target_allowed
 from extractor import extract_emails, extract_phones_my
 from models import Campaign, Consent, Event, InboxMessage, Lead, Suppression, db
@@ -34,9 +35,9 @@ from models import Campaign, Consent, Event, InboxMessage, Lead, Suppression, db
 app = Flask(__name__)
 app.config["SECRET_KEY"] = config.SECRET_KEY
 app.config["SQLALCHEMY_DATABASE_URI"] = config.SQLALCHEMY_DATABASE_URI
-# Upload cap: import files are small text/CSV; 2 MB is generous and prevents
-# memory-exhaustion via huge uploads.
-app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+# Upload cap: import files are small text/CSV; 1 MB is generous and prevents
+# memory-exhaustion via huge uploads (oversize bodies -> 413).
+app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024
 db.init_app(app)
 
 with app.app_context():
@@ -44,27 +45,60 @@ with app.app_context():
 
 
 # --- Security headers ------------------------------------------------------
+# Paths whose responses must never be cached (they contain lead data,
+# settings, or are machine-to-machine API endpoints).
+NOSTORE_PREFIXES = ("/settings", "/campaign", "/inbox", "/export",
+                    "/webhooks", "/telegram")
+
+# Flood/brute-force friction (in-process, per-IP; see ratelimit.py).
+WEBHOOK_HITS_PER_MIN = 60      # any webhook request counts as a hit
+AUTH_FAILURES_PER_MIN = 10     # only FAILED admin logins count as hits
+
+
 @app.after_request
 def set_security_headers(resp):
     """Baseline hardening headers on every response.
 
-    CSP is same-origin-only: the UI uses inline <script> blocks, so
-    'unsafe-inline' is required for scripts/styles but object/media/frame
-    ancestors are fully locked. The app is admin-authenticated and served on
-    a LAN/VPN; it is not a public content site.
+    CSP: default-src 'none' with same-origin script/style explicitly
+    re-allowed. 'unsafe-inline' is required for script and style because
+    every template uses inline <script>/<style> blocks (the UI has no
+    static JS/CSS build step); everything else — objects, frames, base
+    tags, form targets — is fully locked. The app is admin-authenticated
+    and served on a LAN/VPN; it is not a public content site.
     """
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     resp.headers.setdefault("X-Frame-Options", "DENY")
-    resp.headers.setdefault("Referrer-Policy", "same-origin")
+    resp.headers.setdefault("Referrer-Policy", "no-referrer")
+    # Modern recommendation: disable the legacy XSS auditor (it creates
+    # vulnerabilities of its own); CSP is the real defence.
+    resp.headers.setdefault("X-XSS-Protection", "0")
     resp.headers.setdefault(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "default-src 'none'; script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-        "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; "
-        "form-action 'self'")
+        "connect-src 'self'; form-action 'self'; base-uri 'none'; "
+        "frame-ancestors 'none'; object-src 'none'")
     resp.headers.setdefault("Permissions-Policy",
-                           "camera=(), microphone=(), geolocation=()")
+                            "camera=(), microphone=(), geolocation=(), "
+                            "payment=(), usb=()")
+    if request.path.startswith(NOSTORE_PREFIXES):
+        resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+# --- Error handlers (never leak tracebacks to clients) -----------------------
+@app.errorhandler(413)
+def payload_too_large(_e):
+    return "Request body too large (1 MB limit).", 413
+
+
+@app.errorhandler(500)
+def internal_error(_e):
+    """Generic 500: the traceback is logged server-side, never echoed."""
+    app.logger.exception("Unhandled server error")
+    if request.path.startswith(("/campaign/draft", "/settings/llm/models")):
+        return jsonify({"ok": False, "error": "internal server error"}), 500
+    return "Internal Server Error", 500
 
 
 # --- CSRF protection ------------------------------------------------------
@@ -86,6 +120,24 @@ def csrf_protect():
             or request.headers.get("X-CSRF-Token", ""))
     if not token or not sent or not hmac.compare_digest(token, sent):
         return "CSRF token missing or invalid.", 400
+
+
+@app.before_request
+def webhook_rate_limit():
+    """Flood friction on the public webhook endpoints (per-IP, in-memory).
+
+    Every request to a webhook records a hit; past the window limit the
+    endpoint answers 429 before any signature work happens. Legitimate
+    provider traffic (Meta/Telegram/Brevo) is far below this rate; a real
+    flood is still best absorbed at the proxy/firewall layer.
+    """
+    if not request.path.startswith(("/webhooks/", "/telegram/webhook")):
+        return None
+    key = f"wh:{request.remote_addr or '?'}"
+    if ratelimit.is_blocked(key, WEBHOOK_HITS_PER_MIN):
+        return jsonify({"ok": False, "error": "rate limited"}), 429
+    ratelimit.record(key)
+    return None
 
 
 def session_token() -> str:
@@ -132,6 +184,14 @@ def require_admin_auth():
     user_ok = hmac.compare_digest(auth.username, config.ADMIN_USER)
     pass_ok = hmac.compare_digest(auth.password, config.ADMIN_PASSWORD)
     if not (user_ok and pass_ok):
+        # Brute-force friction: only FAILED attempts count (a browser re-sends
+        # Basic auth on every request, so counting successes would lock out
+        # the admin). Correct credentials always pass.
+        fail_key = f"auth:{request.remote_addr or '?'}"
+        if ratelimit.is_blocked(fail_key, AUTH_FAILURES_PER_MIN):
+            return Response("Too many failed login attempts. Try again later.",
+                            429, {"WWW-Authenticate": 'Basic realm="Fixzy"'})
+        ratelimit.record(fail_key)
         return Response("Admin login required.", 401,
                        {"WWW-Authenticate": 'Basic realm="Fixzy"'})
     return None
@@ -358,7 +418,7 @@ def export_leads():
 @app.route("/campaign/draft", methods=["POST"])
 def campaign_draft():
     """AI copy draft endpoint. Optional provider_id + model in the JSON body."""
-    from aicopy import draft_message
+    from aicopy import check_provider, draft_message
     from models import LlmProvider
     body = request.json or {}
     brief = body.get("brief", "").strip()
@@ -368,6 +428,12 @@ def campaign_draft():
         provider = db.session.get(LlmProvider, body["provider_id"])
         if not provider:
             return jsonify({"ok": False, "error": "Provider not found"}), 404
+    # SSRF refusal is a client-input problem -> 400 (distinct from provider
+    # network failures which are 502).
+    if provider is not None:
+        refusal = check_provider(provider)
+        if refusal:
+            return jsonify({"ok": False, "error": refusal}), 400
     draft, err = draft_message(brief, channel, provider=provider,
                               model=body.get("model") or None)
     if draft is None:
@@ -386,6 +452,14 @@ def settings_llm():
             base_url = request.form.get("base_url", "").strip()
             if not name or not base_url:
                 flash("Name and base URL are required.")
+                return redirect(url_for("settings_llm"))
+            # Reject private/internal base URLs at save time (fail closed);
+            # ALLOW_PRIVATE_LLM=1 is the documented escape for local Ollama.
+            from aicopy import check_provider
+            from models import LlmProvider as _LP
+            refusal = check_provider(_LP(name=name, base_url=base_url))
+            if refusal:
+                flash(f"Provider not saved: {refusal}")
                 return redirect(url_for("settings_llm"))
             p = LlmProvider(name=name, base_url=base_url,
                            api_key=request.form.get("api_key", "").strip(),
@@ -434,7 +508,17 @@ def settings_search():
     action = request.form.get("action")
     if action == "save":
         Setting.set("serpapi_key", request.form.get("serpapi_key", "").strip())
-        Setting.set("searxng_url", request.form.get("searxng_url", "").strip())
+        searxng_url = request.form.get("searxng_url", "").strip()
+        # Same SSRF policy as LLM providers: a self-hosted SearXNG on a
+        # private host needs ALLOW_PRIVATE_LLM=1 (documented escape hatch).
+        if searxng_url:
+            from netguard import check_url_allowed
+            ok, reason = check_url_allowed(
+                searxng_url, allow_private=config.ALLOW_PRIVATE_LLM)
+            if not ok:
+                flash(f"SearXNG URL not saved: {reason}")
+                return redirect(url_for("settings_llm"))
+        Setting.set("searxng_url", searxng_url)
         flash("Search API settings saved.")
     elif action == "test":
         import searchapi
