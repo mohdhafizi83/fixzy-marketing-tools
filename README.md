@@ -1,4 +1,6 @@
 # Fixzy Marketing Tools
+[![CI](https://github.com/mohdhafizi83/fixzy-marketing-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/mohdhafizi83/fixzy-marketing-tools/actions/workflows/ci.yml)
+
 
 Open-source lead generation + multi-channel outreach tool. A modern Flask rebuild
 of a 2016 VB.NET desktop app ("EmailSpider"), redesigned around one principle:
