@@ -160,7 +160,8 @@ def inject_csrf():
 # The UI holds lead data and settings: it must never be public without auth.
 # Public paths (must stay open): unsubscribe pages/links (recipients are not
 # admin), provider webhooks (Meta/Telegram call them), static assets.
-PUBLIC_PATHS = ("/unsubscribe/", "/webhooks/", "/telegram/webhook", "/static/")
+PUBLIC_PATHS = ("/unsubscribe/", "/webhooks/", "/telegram/webhook", "/static/",
+                "/healthz")
 
 
 @app.before_request
@@ -244,6 +245,12 @@ def _get_or_create_lead(email=None, phone=None, source="") -> Lead:
     db.session.add(lead)
     db.session.flush()
     return lead
+
+
+@app.route("/healthz")
+def healthz():
+    """Liveness probe for Docker/compose healthchecks. No data, no auth."""
+    return jsonify({"ok": True}), 200
 
 
 @app.route("/")

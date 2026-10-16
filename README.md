@@ -54,6 +54,18 @@ Stack: Flask + SQLite + web UI, port `:5558`. No paid infrastructure required.
 
 ## Quick start
 
+**Docker (recommended):**
+
+```bash
+git clone https://github.com/mohdhafizi83/fixzy-marketing-tools.git
+cd fixzy-marketing-tools
+cp .env.example .env      # set at least SECRET_KEY + ADMIN_PASSWORD
+docker compose up -d --build
+# UI: http://localhost:5558  (APP_PORT=xxxx to change the host port)
+```
+
+**Native:**
+
 ```bash
 git clone <repo-url> && cd fixzy-marketing-tools
 python3 -m venv .venv
@@ -66,6 +78,13 @@ cp .env.example .env      # optional: fill credentials, or do it in the UI later
 Without any credentials the app still runs: channels show as
 "not configured" and nothing is sent. Add keys anytime via
 **Settings → Channels** (takes effect immediately).
+
+## Documentation
+
+- [Getting started](docs/getting-started.md) — Docker quickstart + first campaign
+- [Configuration](docs/configuration.md) — every environment variable
+- [PDPA compliance guide](docs/pdpa-compliance.md) — consent ledger, suppression, direct-marketing duties (Malaysia)
+- [Troubleshooting](docs/troubleshooting.md) · [SECURITY.md](SECURITY.md) · [CHANGELOG.md](CHANGELOG.md)
 
 ## First login (admin auth)
 

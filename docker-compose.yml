@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    image: fixzy-marketing-tools:local
+    ports:
+      - "${APP_PORT:-5558}:5558"
+    env_file:
+      - .env
+    environment:
+      # Keep the sqlite DB on a named volume so it survives container rebuilds.
+      DATABASE_URL: sqlite:////data/fixzy.db
+    volumes:
+      - fixzy-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:5558/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  fixzy-data:

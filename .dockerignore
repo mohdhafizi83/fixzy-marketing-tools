@@ -1,0 +1,20 @@
+# Never bake local state/secrets into the image.
+.git
+.env
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+fixzy.db
+*.db
+*.db-journal
+instance/
+tests/
+docs/
+CHANGELOG.md
+SECURITY.md
+PROJECT_BRIEF.md
+PROVIDER_COMPLIANCE.md
