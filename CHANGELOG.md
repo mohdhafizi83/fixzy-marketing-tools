@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-10-16
+## [1.0.0] - 2026-10-16
 
 First product-grade release.
 
